@@ -15,6 +15,7 @@ interface FindingsSectionProps {
   }>;
   emptyMessage: string;
   trustMap?: Record<string, string>;
+  trustLevel?: "advisor" | "assistant" | "autopilot";
 }
 
 export function FindingsSection({
@@ -22,6 +23,7 @@ export function FindingsSection({
   findings,
   emptyMessage,
   trustMap,
+  trustLevel,
 }: FindingsSectionProps) {
   return (
     <s-section heading={`${heading} (${findings.length})`}>
@@ -34,6 +36,7 @@ export function FindingsSection({
               key={finding.id}
               finding={finding}
               trustLevel={
+                trustLevel ??
                 (trustMap?.[finding.agentId] as "advisor" | "assistant" | "autopilot") ??
                 "assistant"
               }

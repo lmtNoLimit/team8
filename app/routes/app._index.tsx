@@ -23,7 +23,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // H-4: sync product count on dashboard load (daily refresh)
   syncProductCount(shop, admin).catch(() => {});
 
-  const [pendingFindings, handledToday, agents, agentSettings, storeProfile, enabledIds, usage, showTrialOffer] =
+  const [pendingFindings, handledToday, , agentSettings, storeProfile, enabledIds, usage, showTrialOffer] =
     await Promise.all([
       getFindings(shop, { status: "pending" }),
       getFindings(shop, { status: "applied" }),

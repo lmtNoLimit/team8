@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import { getFindings } from "../services/finding-storage.server";
 import { getAgent } from "../agents/agent-registry.server";
-import { isAgentEnabled } from "../services/agent-settings.server";
+import { isAgentEnabled, getAgentTrustLevel } from "../services/agent-settings.server";
 import prisma from "../db.server";
 import { FindingCard } from "../components/finding-card";
 
@@ -29,7 +29,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     );
   }
 
-  const findings = await getFindings(session.shop, { agentId });
+  const [findings, trustLevel] = await Promise.all([
+    getFindings(session.shop, { agentId }),
+    getAgentTrustLevel(session.shop, agentId),
+  ]);
 
   let syncConfig = null;
   let reviewsByProduct: {
@@ -93,6 +96,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       description: agent.description,
     },
     findings,
+    trustLevel,
     syncConfig: syncConfig ? {
       status: syncConfig.status,
       provider: syncConfig.provider,
@@ -104,7 +108,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export default function AgentDetailPage() {
-  const { agent, findings, syncConfig, reviewsByProduct } = useLoaderData<typeof loader>();
+  const { agent, findings, trustLevel, syncConfig, reviewsByProduct } = useLoaderData<typeof loader>();
   const runFetcher = useFetcher();
   const revalidator = useRevalidator();
   const isRunning = runFetcher.state !== "idle";
@@ -200,7 +204,7 @@ export default function AgentDetailPage() {
             <s-section heading={`Needs Decision (${actionNeeded.length})`}>
               <s-stack direction="block" gap="base">
                 {actionNeeded.map((f) => (
-                  <FindingCard key={f.id} finding={f} />
+                  <FindingCard key={f.id} finding={f} trustLevel={trustLevel} />
                 ))}
               </s-stack>
             </s-section>
@@ -209,7 +213,7 @@ export default function AgentDetailPage() {
             <s-section heading={`Handled (${done.length})`}>
               <s-stack direction="block" gap="base">
                 {done.map((f) => (
-                  <FindingCard key={f.id} finding={f} />
+                  <FindingCard key={f.id} finding={f} trustLevel={trustLevel} />
                 ))}
               </s-stack>
             </s-section>
@@ -218,7 +222,7 @@ export default function AgentDetailPage() {
             <s-section heading={`Insights (${insights.length})`}>
               <s-stack direction="block" gap="base">
                 {insights.map((f) => (
-                  <FindingCard key={f.id} finding={f} />
+                  <FindingCard key={f.id} finding={f} trustLevel={trustLevel} />
                 ))}
               </s-stack>
             </s-section>

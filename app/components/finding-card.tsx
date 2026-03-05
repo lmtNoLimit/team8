@@ -34,7 +34,7 @@ function parseActionGuidance(
 
   try {
     const action = JSON.parse(actionStr) as Record<string, unknown>;
-    const type = action.type as string;
+    const type = (action.type ?? action.fixType) as string;
 
     switch (type) {
       case "reorderAlert":
@@ -61,6 +61,21 @@ function parseActionGuidance(
         return {
           guidance: `Improve the product page for "${action.handle}" — update hero image and add a FAQ section.`,
           adminPath: action.handle ? `/products/${action.handle}` : "/products",
+        };
+      case "generate_alt_text":
+        return {
+          guidance: `Auto-generate descriptive alt text with AI for images missing alt text on "${action.productTitle}".`,
+          adminPath: action.adminUrl as string | null,
+        };
+      case "improve_description":
+        return {
+          guidance: `Generate a rich, SEO-optimized product description with AI for "${action.productTitle}".`,
+          adminPath: action.adminUrl as string | null,
+        };
+      case "manual_upload_image":
+        return {
+          guidance: `Upload a high-quality hero image (recommended: 1024x1024px, white background) in Shopify Admin.`,
+          adminPath: action.adminUrl as string | null,
         };
       default:
         break;
@@ -104,11 +119,19 @@ export function FindingCard({ finding, trustLevel = "assistant" }: FindingCardPr
   const isDismissing = dismissFetcher.state !== "idle";
   const [showConfirm, setShowConfirm] = useState(false);
 
+  const applyResult = applyFetcher.data as
+    | { success?: boolean; message?: string; error?: string }
+    | undefined;
+
   useEffect(() => {
     if (applyFetcher.state === "idle" && applyFetcher.data) {
       revalidator.revalidate();
       setShowConfirm(false);
-      shopify.toast.show(`Done — "${finding.title}" marked as applied`);
+      if (applyResult?.success) {
+        shopify.toast.show(applyResult.message ?? `Done — "${finding.title}" fixed`);
+      } else if (applyResult?.error) {
+        shopify.toast.show(applyResult.error, { isError: true });
+      }
     }
   }, [applyFetcher.state, applyFetcher.data]);
 
@@ -134,6 +157,15 @@ export function FindingCard({ finding, trustLevel = "assistant" }: FindingCardPr
 
   const actionGuidance = parseActionGuidance(finding.action, finding.agentId, meta);
 
+  let actionData: Record<string, unknown> | null = null;
+  try {
+    actionData = finding.action ? JSON.parse(finding.action) : null;
+  } catch {
+    // malformed action JSON — treat as no action
+  }
+  const adminUrl = (actionData?.adminUrl as string) ?? null;
+  const isAutoFixable = actionData && actionData.fixType && actionData.fixType !== "manual_upload_image";
+
   return (
     <s-box id={`finding-${finding.id}`} padding="base" borderWidth="base" borderRadius="base">
       <s-stack direction="block" gap="small">
@@ -154,7 +186,21 @@ export function FindingCard({ finding, trustLevel = "assistant" }: FindingCardPr
         <s-text>
           <strong>{finding.title}</strong>
         </s-text>
-        <s-paragraph>{finding.description}</s-paragraph>
+        {finding.description.includes("\n\nRecommendation:") ? (
+          <>
+            <s-paragraph>
+              {finding.description.split("\n\nRecommendation:")[0]}
+            </s-paragraph>
+            <s-box padding="small" borderWidth="base" borderRadius="base">
+              <s-text>
+                <strong>Recommendation:</strong>{" "}
+                {finding.description.split("\n\nRecommendation:")[1].trim()}
+              </s-text>
+            </s-box>
+          </>
+        ) : (
+          <s-paragraph>{finding.description}</s-paragraph>
+        )}
 
         {/* Suggested next step — shown for all trust levels */}
         {actionGuidance && (
@@ -163,12 +209,19 @@ export function FindingCard({ finding, trustLevel = "assistant" }: FindingCardPr
               <s-text><strong>Suggested next step</strong></s-text>
               <s-paragraph>{actionGuidance.guidance}</s-paragraph>
               {actionGuidance.adminPath && (
-                <s-link href={`shopify://admin${actionGuidance.adminPath}`} target="_blank">
+                <s-link href={actionGuidance.adminPath.startsWith("shopify:") ? actionGuidance.adminPath : `shopify://admin${actionGuidance.adminPath}`} target="_blank">
                   Open in Shopify Admin →
                 </s-link>
               )}
             </s-stack>
           </s-box>
+        )}
+
+        {/* Apply result banner */}
+        {applyResult && applyFetcher.state === "idle" && (
+          <s-banner tone={applyResult.success ? "success" : "critical"}>
+            {applyResult.success ? applyResult.message : applyResult.error ?? applyResult.message}
+          </s-banner>
         )}
 
         {/* Advisor: manual instructions (no action buttons) */}
@@ -184,11 +237,12 @@ export function FindingCard({ finding, trustLevel = "assistant" }: FindingCardPr
             {finding.action && (
               <s-button
                 variant="primary"
-                onClick={() => setShowConfirm(true)}
+                onClick={() => isAutoFixable ? setShowConfirm(true) : setShowConfirm(true)}
               >
                 Apply Fix
               </s-button>
             )}
+            {adminUrl && <s-link href={adminUrl}>Edit in Admin</s-link>}
             <s-button
               variant="tertiary"
               onClick={() =>
@@ -216,10 +270,18 @@ export function FindingCard({ finding, trustLevel = "assistant" }: FindingCardPr
                 <s-button
                   variant="primary"
                   onClick={() =>
-                    applyFetcher.submit(
-                      { status: "applied" },
-                      { method: "POST", action: statusAction },
-                    )
+                    isAutoFixable
+                      ? applyFetcher.submit(
+                          {},
+                          {
+                            method: "POST",
+                            action: `/app/api/agents/findings/${finding.id}/apply`,
+                          },
+                        )
+                      : applyFetcher.submit(
+                          { status: "applied" },
+                          { method: "POST", action: statusAction },
+                        )
                   }
                   {...(isApplying ? { loading: true } : {})}
                 >
