@@ -4,11 +4,13 @@ import type {
   AgentFindingInput,
 } from "../../lib/agent-interface";
 import { askClaudeJSON } from "../../lib/ai.server";
+import { getStoreProfile } from "../../services/store-profile.server";
 
 interface TrendMatch {
   trend: string;
   growth: string;
   relevance: "high" | "medium" | "low";
+  category: "keyword" | "seasonal" | "emerging";
   matchingProducts: string[];
   optimized: boolean;
   suggestion: string;
@@ -77,6 +79,14 @@ export const trendAgent: Agent = {
       ];
     }
 
+    let profileContext = "";
+    try {
+      const profile = await getStoreProfile(shop);
+      if (profile.industry || profile.targetAudience) {
+        profileContext = `\nStore context: Industry: ${profile.industry || "unknown"}, Target audience: ${profile.targetAudience || "general"}, Description: ${profile.storeDescription || "N/A"}`;
+      }
+    } catch { /* profile unavailable, continue without */ }
+
     const productSummary = buildProductSummary(products);
 
     const trends = await askClaudeJSON<TrendMatch[]>(
@@ -84,17 +94,19 @@ export const trendAgent: Agent = {
 
 Product catalog:
 ${productSummary}
+${profileContext}
 
 For each trend, determine:
 - trend: the trending keyword/topic
 - growth: estimated growth (e.g., "+340%", "+120%")
 - relevance: how relevant to this store ("high", "medium", "low")
+- category: "keyword" (search term trend), "seasonal" (seasonal opportunity), or "emerging" (new market trend)
 - matchingProducts: array of product titles that could benefit
 - optimized: whether the product titles/descriptions already mention this trend
-- suggestion: what the merchant should do
+- suggestion: what the merchant should do (under 200 chars)
 
 Return JSON array sorted by relevance then growth.`,
-      "You are a market research analyst specializing in e-commerce and consumer search trends. Use your knowledge of current 2026 trends.",
+      "You are a market research analyst specializing in e-commerce and consumer search trends. Use your knowledge of current 2026 trends. Focus on actionable, specific trends — not generic advice.",
     );
 
     const findings: AgentFindingInput[] = [];
@@ -110,6 +122,8 @@ Return JSON array sorted by relevance then growth.`,
           metadata: {
             trend: t.trend,
             growth: t.growth,
+            category: t.category || "keyword",
+            relevance: t.relevance,
             matchingProducts: t.matchingProducts,
           },
           deduplicationKey: `trend:optimize-${t.trend.toLowerCase().replace(/\s+/g, "-")}`,
@@ -120,7 +134,7 @@ Return JSON array sorted by relevance then growth.`,
           priority: 5,
           title: `Already optimized for "${t.trend}" (${t.growth})`,
           description: "Your products already mention this trend. Good job.",
-          metadata: { trend: t.trend, growth: t.growth },
+          metadata: { trend: t.trend, growth: t.growth, category: t.category || "keyword", relevance: t.relevance },
           deduplicationKey: `trend:optimized-${t.trend.toLowerCase().replace(/\s+/g, "-")}`,
         });
       } else {
@@ -129,7 +143,7 @@ Return JSON array sorted by relevance then growth.`,
           priority: 4,
           title: `"${t.trend}" trending ${t.growth}`,
           description: `${t.suggestion}. Could be relevant if you expand your catalog.`,
-          metadata: { trend: t.trend, growth: t.growth },
+          metadata: { trend: t.trend, growth: t.growth, category: t.category || "keyword", relevance: t.relevance },
           deduplicationKey: `trend:insight-${t.trend.toLowerCase().replace(/\s+/g, "-")}`,
         });
       }
