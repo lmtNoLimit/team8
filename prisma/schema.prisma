@@ -132,3 +132,44 @@ model ReviewSyncConfig {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+
+model ShopPlan {
+  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
+  shop                  String    @unique
+  tier                  String    @default("free") // "free" | "starter" | "pro" | "agency"
+  shopifySubscriptionId String?
+  subscriptionStatus    String    @default("active") // "active" | "pending" | "frozen" | "cancelled"
+  trialEndsAt           DateTime?
+  currentPeriodEnd      DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model ProductCount {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop     String   @unique
+  count    Int      @default(0)
+  syncedAt DateTime @default(now())
+}
+
+model RunFrequencyLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop      String
+  weekStart DateTime
+  runCount  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shop, weekStart])
+  @@index([shop])
+}
+
+model StoreAssignment {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  primaryShop String
+  managedShop String
+  addedAt     DateTime @default(now())
+
+  @@unique([primaryShop, managedShop])
+  @@index([primaryShop])
+}
