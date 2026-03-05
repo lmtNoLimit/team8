@@ -28,3 +28,4 @@ pnpm-lock.yaml
 .react-router/
 
 shopify.app.toml
+shopify.app.dev.toml
