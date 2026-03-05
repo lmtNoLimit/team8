@@ -111,10 +111,15 @@ export default function AgentDetailPage() {
 
   useEffect(() => {
     if (runFetcher.state === "idle" && runFetcher.data) {
-      revalidator.revalidate();
-      shopify.toast.show(`${agent.displayName} finished running`);
+      const result = runFetcher.data as { success?: boolean; error?: string };
+      if (result.success) {
+        revalidator.revalidate();
+        shopify.toast.show(`${agent.displayName} finished running`);
+      } else {
+        shopify.toast.show(result.error ?? "Agent run failed", { isError: true });
+      }
     }
-  }, [runFetcher.state, runFetcher.data]);
+  }, [runFetcher.state, runFetcher.data, agent.displayName, revalidator]);
 
   const actionNeeded = findings.filter((f) => f.type === "action_needed");
   const done = findings.filter((f) => f.type === "done");

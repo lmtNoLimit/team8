@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useFetcher, data } from "react-router";
+import { useLoaderData, useFetcher, useRevalidator, data } from "react-router";
+import { useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import { getFindings } from "../services/finding-storage.server";
 import { getAgent } from "../agents/agent-registry.server";
@@ -8,9 +9,10 @@ import { FindingsSection } from "../components/findings-section";
 
 interface TrendRow {
   trend: string;
-  growth: string;
+  trafficVolume: string;
   category: string;
   matchingProducts: string[];
+  source: string;
   type: string;
 }
 
@@ -29,11 +31,12 @@ function buildTrendRows(
 
     rows.push({
       trend,
-      growth: (meta.growth as string) || "N/A",
+      trafficVolume: (meta.trafficVolume as string) || (meta.growth as string) || "N/A",
       category: (meta.category as string) || "keyword",
       matchingProducts: Array.isArray(meta.matchingProducts)
         ? (meta.matchingProducts as string[])
         : [],
+      source: (meta.source as string) || "ai_analysis",
       type: f.type,
     });
   }
@@ -78,7 +81,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function TrendRadarPage() {
   const { agent, findings } = useLoaderData<typeof loader>();
   const runFetcher = useFetcher();
+  const revalidator = useRevalidator();
   const isRunning = runFetcher.state !== "idle";
+
+  useEffect(() => {
+    if (runFetcher.state === "idle" && runFetcher.data) {
+      const result = runFetcher.data as { success?: boolean; error?: string };
+      if (result.success) {
+        revalidator.revalidate();
+        shopify.toast.show(`${agent.displayName} finished running`);
+      } else {
+        shopify.toast.show(result.error ?? "Agent run failed", { isError: true });
+      }
+    }
+  }, [runFetcher.state, runFetcher.data, agent.displayName, revalidator]);
 
   const actionNeeded = findings.filter(
     (f) => f.type === "action_needed" && f.status === "pending",
@@ -156,7 +172,7 @@ export default function TrendRadarPage() {
                   <s-text>
                     <strong>{row.trend}</strong>
                   </s-text>
-                  <s-badge tone="success">{row.growth}</s-badge>
+                  <s-badge tone="success">{row.trafficVolume}</s-badge>
                   <s-badge
                     tone={
                       (CATEGORY_TONES[row.category] as
@@ -167,6 +183,9 @@ export default function TrendRadarPage() {
                   >
                     {row.category}
                   </s-badge>
+                  {row.source === "google_trends" && (
+                    <s-badge tone="info">Google Trends</s-badge>
+                  )}
                   <s-text>
                     {row.matchingProducts.length > 0
                       ? `${row.matchingProducts.length} product${row.matchingProducts.length > 1 ? "s" : ""}`
