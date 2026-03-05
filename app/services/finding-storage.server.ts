@@ -59,6 +59,18 @@ export async function saveFindings(
     saved.push(finding);
   }
 
+  // Clean up stale findings no longer produced by this agent run
+  const currentKeys = saved
+    .map((f) => f.deduplicationKey)
+    .filter((k): k is string => k !== null);
+  await prisma.agentFinding.deleteMany({
+    where: {
+      agentId,
+      shop,
+      deduplicationKey: { notIn: currentKeys },
+    },
+  });
+
   return saved;
 }
 
