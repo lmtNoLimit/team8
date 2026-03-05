@@ -4,7 +4,9 @@ import {
   useFetcher,
   useNavigate,
   useSearchParams,
+  useRevalidator,
 } from "react-router";
+import { useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import { getAgentSettings } from "../services/agent-settings.server";
 import { getFindings } from "../services/finding-storage.server";
@@ -71,15 +73,33 @@ export default function AgentsListPage() {
     useLoaderData<typeof loader>();
   const runAllFetcher = useFetcher();
   const navigate = useNavigate();
+  const revalidator = useRevalidator();
   const [searchParams, setSearchParams] = useSearchParams();
   const isRunningAll = runAllFetcher.state !== "idle";
   const activeTab = searchParams.get("tab") ?? "agents";
 
-  const runResult = runAllFetcher.data as {
+  const runAllResult = runAllFetcher.data as {
     success?: boolean;
     error?: string;
     upgradeUrl?: string;
+    results?: { agentId: string; success: boolean; findingsCount?: number }[];
   } | null;
+
+  useEffect(() => {
+    if (runAllFetcher.state === "idle" && runAllFetcher.data) {
+      if (runAllResult?.success) {
+        revalidator.revalidate();
+        const total =
+          runAllResult.results?.reduce(
+            (sum, r) => sum + (r.findingsCount ?? 0),
+            0,
+          ) ?? 0;
+        shopify.toast.show(`All agents finished — ${total} findings`);
+      } else if (runAllResult?.error) {
+        shopify.toast.show(runAllResult.error, { isError: true });
+      }
+    }
+  }, [runAllFetcher.state, runAllFetcher.data]);
 
   const enabledCount = agents.filter((a) => a.enabled).length;
 
@@ -99,10 +119,10 @@ export default function AgentsListPage() {
         Run All Agents
       </s-button>
 
-      {runResult && !runResult.success && (
+      {runAllResult && !runAllResult.success && (
         <s-banner tone="warning">
-          {runResult.error}{" "}
-          <s-link href={runResult.upgradeUrl || "/app/upgrade"}>
+          {runAllResult.error}{" "}
+          <s-link href={runAllResult.upgradeUrl || "/app/upgrade"}>
             View upgrade options
           </s-link>
         </s-banner>
@@ -223,7 +243,27 @@ function AgentCard({
   planLimited: boolean;
 }) {
   const fetcher = useFetcher();
+  const revalidator = useRevalidator();
   const isRunning = fetcher.state !== "idle";
+
+  const runResult = fetcher.data as {
+    success?: boolean;
+    error?: string;
+    findingsCount?: number;
+  } | null;
+
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data) {
+      if (runResult?.success) {
+        revalidator.revalidate();
+        shopify.toast.show(
+          `${agent.displayName} found ${runResult.findingsCount ?? 0} findings`,
+        );
+      } else if (runResult?.error) {
+        shopify.toast.show(runResult.error, { isError: true });
+      }
+    }
+  }, [fetcher.state, fetcher.data]);
 
   return (
     <s-box padding="base" borderWidth="base" borderRadius="base">
