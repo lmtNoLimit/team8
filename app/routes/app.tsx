@@ -19,7 +19,6 @@ export default function App() {
     <AppProvider embedded apiKey={apiKey}>
       <s-app-nav>
         <s-link href="/app/agents">My Team</s-link>
-        <s-link href="/app/storefront">Store Health</s-link>
         <s-link href="/app/upgrade">Pricing</s-link>
         <s-link href="/app/settings">Settings</s-link>
       </s-app-nav>
