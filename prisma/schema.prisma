@@ -65,7 +65,8 @@ model Review {
   shop         String
   productId    String
   productTitle String
-  source       String   @default("seed") // "seed" | "judgeme" | "yotpo"
+  source       String   @default("judgeme") // "seed" | "judgeme" | "yotpo"
+  externalId   String?
   author       String?
   rating       Int      // 1-5
   title        String?
@@ -75,6 +76,7 @@ model Review {
   language     String?  @default("en")
   createdAt    DateTime @default(now())
 
+  @@unique([shop, source, externalId])
   @@index([shop, productId])
   @@index([shop, rating])
 }
@@ -116,4 +118,58 @@ model ActivityLog {
 
   @@index([shop, createdAt])
   @@index([shop, agentId])
+}
+
+model ReviewSyncConfig {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop          String   @unique
+  provider      String   @default("judgeme")
+  apiToken      String
+  webhookIds    String[]
+  lastSyncedAt  DateTime?
+  reviewCount   Int      @default(0)
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ShopPlan {
+  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
+  shop                  String    @unique
+  tier                  String    @default("free") // "free" | "starter" | "pro" | "agency"
+  shopifySubscriptionId String?
+  subscriptionStatus    String    @default("active") // "active" | "pending" | "frozen" | "cancelled"
+  trialEndsAt           DateTime?
+  currentPeriodEnd      DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model ProductCount {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop     String   @unique
+  count    Int      @default(0)
+  syncedAt DateTime @default(now())
+}
+
+model RunFrequencyLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop      String
+  weekStart DateTime
+  runCount  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shop, weekStart])
+  @@index([shop])
+}
+
+model StoreAssignment {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  primaryShop String
+  managedShop String
+  addedAt     DateTime @default(now())
+
+  @@unique([primaryShop, managedShop])
+  @@index([primaryShop])
 }

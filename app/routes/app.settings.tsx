@@ -9,6 +9,7 @@ import {
   type TrustLevel,
 } from "../services/agent-settings.server";
 import { getAgent } from "../agents/agent-registry.server";
+import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -17,7 +18,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     getAgentSettings(session.shop),
   ]);
   const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
-  return { profile, agentSettings, hasAnthropicKey };
+  const reviewSyncConfig = await prisma.reviewSyncConfig.findUnique({
+    where: { shop: session.shop },
+  });
+  return {
+    profile,
+    agentSettings,
+    hasAnthropicKey,
+    reviewSync: reviewSyncConfig ? {
+      status: reviewSyncConfig.status,
+      reviewCount: reviewSyncConfig.reviewCount,
+      lastSyncedAt: reviewSyncConfig.lastSyncedAt?.toISOString() ?? null,
+    } : null,
+  };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -90,7 +103,7 @@ const TRUST_LEVELS: { value: TrustLevel; label: string; description: string }[] 
 ];
 
 export default function SettingsPage() {
-  const { profile, agentSettings, hasAnthropicKey } = useLoaderData<typeof loader>();
+  const { profile, agentSettings, hasAnthropicKey, reviewSync } = useLoaderData<typeof loader>();
   const profileFetcher = useFetcher();
   const isSavingProfile = profileFetcher.state !== "idle";
   const profileSaved =
@@ -186,6 +199,32 @@ export default function SettingsPage() {
             administrator to update.
           </s-paragraph>
         </s-stack>
+      </s-section>
+
+      <s-section heading="Review Sync (Judge.me)">
+        {reviewSync && reviewSync.status === "active" ? (
+          <s-stack direction="block" gap="small">
+            <s-paragraph>
+              <s-badge tone="success">Connected</s-badge>{" "}
+              {reviewSync.reviewCount} reviews synced
+              {reviewSync.lastSyncedAt && ` — last sync: ${new Date(reviewSync.lastSyncedAt).toLocaleDateString()}`}
+            </s-paragraph>
+            <s-paragraph>
+              Manage your connection on the{" "}
+              <s-link href="/app/agents/review">Review Analyst page</s-link>.
+            </s-paragraph>
+          </s-stack>
+        ) : (
+          <s-stack direction="block" gap="small">
+            <s-paragraph>
+              <s-badge tone="critical">Not connected</s-badge>
+            </s-paragraph>
+            <s-paragraph>
+              Connect Judge.me to automatically sync your product reviews.{" "}
+              <s-link href="/app/agents/review">Set up on the Review Analyst page</s-link>.
+            </s-paragraph>
+          </s-stack>
+        )}
       </s-section>
     </s-page>
   );

@@ -48,7 +48,7 @@ export const reviewAgent: Agent = {
           priority: 5,
           title: "No reviews to analyze",
           description:
-            "No product reviews found for this shop. Seed reviews or connect a review source to get insights.",
+            "No product reviews found. Connect Judge.me on the Review Analyst page to sync your reviews automatically.",
           deduplicationKey: "review:no-reviews",
         },
       ];

@@ -8,13 +8,22 @@ import { listAgents } from "../agents/agent-registry.server";
 import { getAgentSettings, getEnabledAgentIds } from "../services/agent-settings.server";
 import { getStoreProfile } from "../services/store-profile.server";
 import { generateBriefing } from "../services/briefing.server";
+import {
+  getUsageSummary,
+  shouldOfferTrial,
+  syncProductCount,
+} from "../services/billing.server";
 import { FindingsSection } from "../components/findings-section";
+import { PlanUsageWidget } from "../components/plan-usage-widget";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
 
-  const [pendingFindings, handledToday, agents, agentSettings, storeProfile, enabledIds] =
+  // H-4: sync product count on dashboard load (daily refresh)
+  syncProductCount(shop, admin).catch(() => {});
+
+  const [pendingFindings, handledToday, agents, agentSettings, storeProfile, enabledIds, usage, showTrialOffer] =
     await Promise.all([
       getFindings(shop, { status: "pending" }),
       getFindings(shop, { status: "applied" }),
@@ -22,6 +31,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       getAgentSettings(shop),
       getStoreProfile(shop),
       getEnabledAgentIds(shop),
+      getUsageSummary(shop),
+      shouldOfferTrial(shop),
     ]);
 
   const trustMap = Object.fromEntries(
@@ -73,6 +84,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .map((f) => f.updatedAt)
       .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]?.toISOString() ?? null,
     today,
+    usage,
+    showTrialOffer,
+    totalFindings: enabledPending.length,
   };
 };
 
@@ -87,6 +101,9 @@ export default function TodayDashboard() {
     progress,
     lastChecked,
     today,
+    usage,
+    showTrialOffer,
+    totalFindings,
   } = useLoaderData<typeof loader>();
   const runAllFetcher = useFetcher();
   const revalidator = useRevalidator();
@@ -134,6 +151,12 @@ export default function TodayDashboard() {
     }
   }, [actionNeeded, insights, handledOvernight, trustMap]);
 
+  const runResult = runAllFetcher.data as {
+    success?: boolean;
+    error?: string;
+    upgradeUrl?: string;
+  } | null;
+
   return (
     <s-page heading="Today">
       <s-button
@@ -149,6 +172,23 @@ export default function TodayDashboard() {
       >
         {isRunningAll ? "Checking..." : "Check Now"}
       </s-button>
+
+      {showTrialOffer && (
+        <s-banner tone="success">
+          Your agents have found {totalFindings} items! Start a free 7-day Pro
+          trial to unlock all features.{" "}
+          <s-link href="/app/upgrade?trial=true">Start Trial</s-link>
+        </s-banner>
+      )}
+
+      {runResult && !runResult.success && (
+        <s-banner tone="warning">
+          {runResult.error}{" "}
+          <s-link href={runResult.upgradeUrl || "/app/upgrade"}>
+            View upgrade options
+          </s-link>
+        </s-banner>
+      )}
 
       {/* Briefing Card */}
       <s-section>
@@ -230,6 +270,10 @@ export default function TodayDashboard() {
       />
 
       {/* Sidebar */}
+      <s-section slot="aside" heading="Plan & Usage">
+        <PlanUsageWidget usage={usage} enabledAgentCount={agentCount} />
+      </s-section>
+
       <s-section slot="aside" heading="Progress">
         <s-stack direction="block" gap="base">
           <s-box padding="base" borderWidth="base" borderRadius="base">

@@ -24,6 +24,7 @@ const AGENT_LABELS: Record<string, string> = {
   inventory: "Inventory",
   storefront: "Storefront",
   review: "Review",
+  trend: "Trend",
 };
 
 /** Parse the action JSON and return human-readable guidance + optional admin link. */
