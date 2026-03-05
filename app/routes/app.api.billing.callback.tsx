@@ -1,5 +1,4 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import { getShopPlan, updateShopPlan } from "../services/billing.server";
 import { getSubscriptionStatus } from "../services/billing-mutations.server";
@@ -13,7 +12,9 @@ const NAME_TO_TIER: Record<string, PlanTier> = {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session, admin } = await authenticate.admin(request);
+  // Use Shopify's embedded-aware redirect (not react-router's)
+  // so the merchant is properly redirected back into the admin iframe
+  const { session, admin, redirect } = await authenticate.admin(request);
   const url = new URL(request.url);
   const chargeId = url.searchParams.get("charge_id");
 
