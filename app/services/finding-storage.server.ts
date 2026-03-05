@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "../db.server";
 import type { AgentFindingInput } from "../lib/agent-interface";
+import { logActivity } from "./activity-log.server";
 
 export interface FindingFilters {
   agentId?: string;
@@ -79,8 +80,20 @@ export async function updateFindingStatus(
   id: string,
   status: "pending" | "applied" | "dismissed",
 ) {
-  return prisma.agentFinding.update({
+  const finding = await prisma.agentFinding.update({
     where: { id },
     data: { status },
   });
+
+  const activityType =
+    status === "applied" ? "finding_applied" : "finding_dismissed";
+  await logActivity(
+    finding.shop,
+    activityType,
+    finding.agentId,
+    `"${finding.title}" was ${status}`,
+    { findingId: id, findingType: finding.type },
+  );
+
+  return finding;
 }

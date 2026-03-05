@@ -4,6 +4,7 @@ import type {
   AgentFindingInput,
 } from "../lib/agent-interface";
 import { saveFindings } from "./finding-storage.server";
+import { logActivity } from "./activity-log.server";
 
 const AGENT_TIMEOUT_MS = 30_000;
 
@@ -31,6 +32,14 @@ export async function executeAgent(
     const elapsed = Date.now() - startTime;
     console.log(
       `[AgentExecutor] ${agent.agentId}: ${saved.length} findings saved (${elapsed}ms)`,
+    );
+
+    await logActivity(
+      shop,
+      "agent_run",
+      agent.agentId,
+      `${agent.displayName} completed in ${elapsed}ms with ${saved.length} findings`,
+      { findingsCount: saved.length, durationMs: elapsed },
     );
 
     return saved;

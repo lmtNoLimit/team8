@@ -5,7 +5,6 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { getFindings } from "../services/finding-storage.server";
 import { listAgents } from "../agents/agent-registry.server";
 import { FindingsSection } from "../components/findings-section";
-import { AgentStatusBar } from "../components/agent-status-bar";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -21,19 +20,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     insight: findings.filter((f) => f.type === "insight"),
   };
 
-  return { grouped, agents };
+  return { grouped, agentCount: agents.length };
 };
 
 export default function SecretaryDashboard() {
-  const { grouped, agents } = useLoaderData<typeof loader>();
+  const { grouped, agentCount } = useLoaderData<typeof loader>();
   const runAllFetcher = useFetcher();
+  const seedFetcher = useFetcher();
   const isRunningAll = runAllFetcher.state !== "idle";
+  const isSeeding = seedFetcher.state !== "idle";
+  const seedDone = seedFetcher.data != null;
 
   const totalFindings =
     grouped.done.length + grouped.action_needed.length + grouped.insight.length;
 
   return (
-    <s-page heading="Good morning! Your briefing is ready.">
+    <s-page heading="Daily Briefing">
       <s-button
         slot="primary-action"
         variant="primary"
@@ -79,8 +81,39 @@ export default function SecretaryDashboard() {
         emptyMessage="No insights discovered yet."
       />
 
-      <s-section slot="aside" heading="Your Agent Team">
-        <AgentStatusBar agents={agents} />
+      <s-section slot="aside" heading="My Team">
+        <s-stack direction="block" gap="base">
+          <s-paragraph>
+            {agentCount} agents monitoring your store.
+          </s-paragraph>
+          <s-link href="/app/agents">View My Team</s-link>
+        </s-stack>
+
+        <s-box padding="base" borderWidth="base" borderRadius="base">
+          <s-stack direction="block" gap="small">
+            <s-text>
+              <strong>Seed Demo Data</strong>
+            </s-text>
+            <s-button
+              variant="secondary"
+              onClick={() =>
+                seedFetcher.submit(
+                  {},
+                  { method: "POST", action: "/app/api/reviews/seed" },
+                )
+              }
+              {...(isSeeding ? { loading: true } : {})}
+              {...(seedDone ? { disabled: true } : {})}
+            >
+              {seedDone ? "Reviews Seeded" : "Seed Reviews (40)"}
+            </s-button>
+            {seedDone && (
+              <s-banner tone="success">
+                {(seedFetcher.data as { message?: string })?.message || "Reviews seeded successfully!"}
+              </s-banner>
+            )}
+          </s-stack>
+        </s-box>
       </s-section>
     </s-page>
   );

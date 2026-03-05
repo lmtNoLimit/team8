@@ -22,6 +22,7 @@ const AGENT_LABELS: Record<string, string> = {
   schema: "Schema",
   inventory: "Inventory",
   storefront: "Storefront",
+  review: "Review",
 };
 
 interface FindingCardProps {

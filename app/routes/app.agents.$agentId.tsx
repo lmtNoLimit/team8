@@ -41,6 +41,7 @@ export default function AgentDetailPage() {
 
   return (
     <s-page heading={agent.displayName}>
+      <s-link slot="breadcrumb-actions" href="/app/agents">My Team</s-link>
       <s-button
         slot="primary-action"
         variant="primary"

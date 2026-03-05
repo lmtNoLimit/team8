@@ -59,3 +59,58 @@ model AgentFinding {
   @@index([shop, type, status])
   @@index([createdAt])
 }
+
+model Review {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop         String
+  productId    String
+  productTitle String
+  source       String   @default("seed") // "seed" | "judgeme" | "yotpo"
+  author       String?
+  rating       Int      // 1-5
+  title        String?
+  body         String
+  verified     Boolean  @default(false)
+  reviewDate   DateTime
+  language     String?  @default("en")
+  createdAt    DateTime @default(now())
+
+  @@index([shop, productId])
+  @@index([shop, rating])
+}
+
+model AgentSetting {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop       String
+  agentId    String
+  trustLevel String   @default("advisor") // "advisor" | "assistant" | "autopilot"
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([shop, agentId])
+}
+
+model StoreProfile {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop             String   @unique
+  storeName        String?
+  industry         String?
+  targetAudience   String?
+  storeDescription String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model ActivityLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  shop      String
+  type      String   // "agent_run" | "finding_applied" | "finding_dismissed" | "agent_auto_executed"
+  agentId   String?
+  message   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([shop, createdAt])
+  @@index([shop, agentId])
+}
