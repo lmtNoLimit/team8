@@ -301,7 +301,6 @@ export function FindingCard({ finding, trustLevel = "assistant" }: FindingCardPr
         {/* Insights: Got it / Dismiss */}
         {showInsightDismiss && (
           <s-button
-            variant="tertiary"
             onClick={() =>
               dismissFetcher.submit(
                 { status: "dismissed" },
