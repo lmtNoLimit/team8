@@ -1,6 +1,6 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useFetcher, useRevalidator } from "react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { getFindings } from "../services/finding-storage.server";
@@ -14,6 +14,7 @@ import {
   syncProductCount,
 } from "../services/billing.server";
 import { FindingsSection } from "../components/findings-section";
+import { FindingCard } from "../components/finding-card";
 import { PlanUsageWidget } from "../components/plan-usage-widget";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -90,6 +91,53 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 };
 
+interface PriorityFinding {
+  id: string;
+  agentId: string;
+  type: string;
+  priority: number;
+  title: string;
+  description: string;
+  action?: string | null;
+  status: string;
+  metadata?: unknown;
+}
+
+function PriorityItem({
+  text,
+  index,
+  finding,
+  trustLevel,
+  isExpanded,
+  onToggle,
+}: {
+  text: string;
+  index: number;
+  finding: PriorityFinding | undefined;
+  trustLevel: "advisor" | "assistant" | "autopilot";
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <s-box padding="base" borderWidth="base" borderRadius="base">
+      <s-stack direction="block" gap="small">
+        <s-button variant="tertiary" onClick={onToggle}>
+          <s-stack direction="inline" gap="base">
+            <s-badge tone={index === 0 ? "critical" : index === 1 ? "warning" : "info"}>
+              {index + 1}
+            </s-badge>
+            <s-text>{text}</s-text>
+            <s-text>{isExpanded ? "▾" : "▸"}</s-text>
+          </s-stack>
+        </s-button>
+        {isExpanded && finding && (
+          <FindingCard finding={finding} trustLevel={trustLevel} />
+        )}
+      </s-stack>
+    </s-box>
+  );
+}
+
 export default function TodayDashboard() {
   const {
     briefing,
@@ -124,32 +172,17 @@ export default function TodayDashboard() {
     }
   }, [runAllFetcher.state, runAllFetcher.data]);
 
-  // Build a lookup for guidance text based on finding type + trust level
-  const findingLookup = new Map(
-    [...actionNeeded, ...insights, ...handledOvernight].map((f) => [f.id, f]),
+  // Track which priority is expanded (by findingId)
+  const [expandedPriority, setExpandedPriority] = useState<string | null>(null);
+
+  // Build a lookup to resolve priority findingIds to full finding objects
+  const allFindings = [...actionNeeded, ...insights, ...handledOvernight];
+  const findingMap = new Map(allFindings.map((f) => [f.id, f]));
+
+  // IDs shown inline via expanded priorities — exclude from sections below
+  const priorityFindingIds = new Set(
+    briefing.topPriorities.map((p) => p.findingId),
   );
-
-  const scrollToFinding = useCallback((findingId: string) => {
-    const el = document.getElementById(`finding-${findingId}`);
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
-    el.style.outline = "2px solid var(--p-color-border-interactive)";
-    el.style.outlineOffset = "2px";
-    setTimeout(() => {
-      el.style.outline = "";
-      el.style.outlineOffset = "";
-    }, 3000);
-
-    const finding = findingLookup.get(findingId);
-    const trust = finding ? trustMap[finding.agentId] : undefined;
-    if (trust === "assistant" && finding?.type === "action_needed") {
-      shopify.toast.show("Review the details, then tap Apply Fix or Dismiss");
-    } else if (trust === "advisor") {
-      shopify.toast.show("This is an advisory finding — review and decide your next step");
-    } else {
-      shopify.toast.show("Here's the finding your secretary flagged");
-    }
-  }, [actionNeeded, insights, handledOvernight, trustMap]);
 
   const runResult = runAllFetcher.data as {
     success?: boolean;
@@ -209,27 +242,27 @@ export default function TodayDashboard() {
             {briefing.topPriorities.length > 0 && (
               <s-stack direction="block" gap="base">
                 <s-text><strong>Top Priorities</strong></s-text>
-                {briefing.topPriorities.map((p, i) => (
-                  <s-box
-                    key={p.findingId || i}
-                    padding="base"
-                    borderWidth="base"
-                    borderRadius="base"
-                    ref={(el: HTMLElement | null) => {
-                      if (!el) return;
-                      el.style.cursor = "pointer";
-                      el.onclick = () => scrollToFinding(p.findingId);
-                    }}
-                  >
-                    <s-stack direction="inline" gap="base">
-                      <s-badge tone={i === 0 ? "critical" : i === 1 ? "warning" : "info"}>
-                        {i + 1}
-                      </s-badge>
-                      <s-text>{p.text}</s-text>
-                      <s-text>→</s-text>
-                    </s-stack>
-                  </s-box>
-                ))}
+                {briefing.topPriorities.map((p, i) => {
+                  const finding = findingMap.get(p.findingId);
+                  return (
+                    <PriorityItem
+                      key={p.findingId || i}
+                      text={p.text}
+                      index={i}
+                      finding={finding as PriorityFinding | undefined}
+                      trustLevel={
+                        (finding ? trustMap[finding.agentId] : "advisor") as
+                          "advisor" | "assistant" | "autopilot"
+                      }
+                      isExpanded={expandedPriority === p.findingId}
+                      onToggle={() =>
+                        setExpandedPriority(
+                          expandedPriority === p.findingId ? null : p.findingId,
+                        )
+                      }
+                    />
+                  );
+                })}
               </s-stack>
             )}
 
@@ -245,10 +278,10 @@ export default function TodayDashboard() {
         </s-box>
       </s-section>
 
-      {/* Needs Your Decision */}
+      {/* Needs Your Decision — exclude findings already shown in Top Priorities */}
       <FindingsSection
         heading="Needs Your Decision"
-        findings={actionNeeded}
+        findings={actionNeeded.filter((f) => !priorityFindingIds.has(f.id))}
         emptyMessage="All clear — nothing needs your attention right now."
         trustMap={trustMap}
       />
@@ -256,7 +289,7 @@ export default function TodayDashboard() {
       {/* Handled Overnight */}
       <FindingsSection
         heading="Handled Overnight"
-        findings={handledOvernight}
+        findings={handledOvernight.filter((f) => !priorityFindingIds.has(f.id))}
         emptyMessage="No automated actions taken yet."
         trustMap={trustMap}
       />
@@ -264,7 +297,7 @@ export default function TodayDashboard() {
       {/* If You Have Time */}
       <FindingsSection
         heading="If You Have Time"
-        findings={insights}
+        findings={insights.filter((f) => !priorityFindingIds.has(f.id))}
         emptyMessage="No extra opportunities right now."
         trustMap={trustMap}
       />
