@@ -90,6 +90,10 @@ Shopify's Sidekick Pulse gives merchants daily recommendations — but it stays 
 
 **The storefront is where revenue happens. That's where we go deep.**
 
+### Target Merchant
+
+Solo founder who has been running their own store for 1–3 years, generating $5K–$50K/month — big enough to have real operational problems, not big enough to hire someone to fix them.
+
 ---
 
 ## 3. Solution: The AI Secretary
