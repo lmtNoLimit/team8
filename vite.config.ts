@@ -55,6 +55,10 @@ export default defineConfig({
   build: {
     assetsInlineLimit: 0,
   },
+  ssr: {
+    noExternal: [],
+    external: ["nodemailer"],
+  },
   optimizeDeps: {
     include: ["@shopify/app-bridge-react"],
   },

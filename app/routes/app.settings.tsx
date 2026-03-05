@@ -17,14 +17,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     getStoreProfile(session.shop),
     getAgentSettings(session.shop),
   ]);
-  const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
   const reviewSyncConfig = await prisma.reviewSyncConfig.findUnique({
     where: { shop: session.shop },
   });
   return {
     profile,
     agentSettings,
-    hasAnthropicKey,
     reviewSync: reviewSyncConfig ? {
       status: reviewSyncConfig.status,
       reviewCount: reviewSyncConfig.reviewCount,
@@ -103,7 +101,7 @@ const TRUST_LEVELS: { value: TrustLevel; label: string; description: string }[] 
 ];
 
 export default function SettingsPage() {
-  const { profile, agentSettings, hasAnthropicKey, reviewSync } = useLoaderData<typeof loader>();
+  const { profile, agentSettings, reviewSync } = useLoaderData<typeof loader>();
   const profileFetcher = useFetcher();
   const isSavingProfile = profileFetcher.state !== "idle";
   const profileSaved =
@@ -180,25 +178,6 @@ export default function SettingsPage() {
           email={profile.briefingEmail ?? ""}
           enabled={profile.briefingEnabled ?? false}
         />
-      </s-section>
-
-      <s-section heading="API Configuration">
-        <s-stack direction="block" gap="small">
-          <s-paragraph>
-            <s-text>
-              <strong>Anthropic API:</strong>
-            </s-text>{" "}
-            {hasAnthropicKey ? (
-              <s-badge tone="success">Connected</s-badge>
-            ) : (
-              <s-badge tone="critical">Not configured</s-badge>
-            )}
-          </s-paragraph>
-          <s-paragraph>
-            API keys are managed via environment variables. Contact your
-            administrator to update.
-          </s-paragraph>
-        </s-stack>
       </s-section>
 
       <s-section heading="Review Sync (Judge.me)">

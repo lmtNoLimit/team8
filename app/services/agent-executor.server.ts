@@ -1,10 +1,11 @@
 import type {
   Agent,
   AdminClient,
-  AgentFindingInput,
 } from "../lib/agent-interface";
-import { saveFindings } from "./finding-storage.server";
+import { saveFindings, updateFindingStatus } from "./finding-storage.server";
 import { logActivity } from "./activity-log.server";
+import { getAgentTrustLevel } from "./agent-settings.server";
+import { executeFix } from "./fix-executor.server";
 
 const AGENT_TIMEOUT_MS = 30_000;
 
@@ -41,6 +42,24 @@ export async function executeAgent(
       `${agent.displayName} completed in ${elapsed}ms with ${saved.length} findings`,
       { findingsCount: saved.length, durationMs: elapsed },
     );
+
+    // Autopilot: auto-apply fixable findings
+    const trustLevel = await getAgentTrustLevel(shop, agent.agentId);
+    if (trustLevel === "autopilot") {
+      const fixable = saved.filter(
+        (f) => f.action && f.status === "pending" && f.type === "action_needed",
+      );
+      for (const finding of fixable.slice(0, 5)) {
+        try {
+          const actionData = JSON.parse(finding.action!) as Record<string, unknown>;
+          if (actionData.fixType === "manual_upload_image") continue;
+          const result = await executeFix(actionData, admin);
+          if (result.success) await updateFindingStatus(finding.id, "applied");
+        } catch (e) {
+          console.error(`[AgentExecutor] Auto-fix failed for ${finding.id}:`, e);
+        }
+      }
+    }
 
     return saved;
   } catch (error) {

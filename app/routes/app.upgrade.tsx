@@ -1,26 +1,72 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useFetcher, useSearchParams } from "react-router";
 import { authenticate } from "../shopify.server";
-import { getShopPlan, getUsageSummary } from "../services/billing.server";
+import {
+  getShopPlan,
+  getUsageSummary,
+  updateShopPlan,
+} from "../services/billing.server";
+import { getSubscriptionStatus } from "../services/billing-mutations.server";
 import { PlanComparisonTable } from "../components/plan-comparison-table";
 import type { PlanTier } from "../lib/plan-config";
 import { useEffect, useState } from "react";
 
+// Reverse-map subscription name -> tier
+const NAME_TO_TIER: Record<string, PlanTier> = {
+  "AI Secretary Starter": "starter",
+  "AI Secretary Pro": "pro",
+  "AI Secretary Agency": "agency",
+};
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const [plan, usage] = await Promise.all([
-    getShopPlan(session.shop),
-    getUsageSummary(session.shop),
-  ]);
-  return { currentTier: plan.tier, usage };
+  const { session, admin } = await authenticate.admin(request);
+  const url = new URL(request.url);
+  const chargeId = url.searchParams.get("charge_id");
+
+  let plan = await getShopPlan(session.shop);
+  let approvalResult: "success" | "declined" | null = null;
+
+  // After Shopify billing approval redirect, verify and activate subscription
+  if (chargeId && plan.shopifySubscriptionId) {
+    try {
+      const sub = await getSubscriptionStatus(admin, plan.shopifySubscriptionId);
+      if (sub?.status === "ACTIVE") {
+        const tier = NAME_TO_TIER[sub.name] ?? plan.tier;
+        await updateShopPlan(session.shop, {
+          tier: tier as PlanTier,
+          shopifySubscriptionId: plan.shopifySubscriptionId,
+          subscriptionStatus: "active",
+          trialEndsAt: null,
+          currentPeriodEnd: sub.currentPeriodEnd
+            ? new Date(sub.currentPeriodEnd)
+            : null,
+        });
+        approvalResult = "success";
+        // Re-fetch plan after update
+        plan = await getShopPlan(session.shop);
+      } else {
+        // Not approved — revert pending state
+        await updateShopPlan(session.shop, {
+          shopifySubscriptionId: null,
+          subscriptionStatus: "active",
+        });
+        approvalResult = "declined";
+        plan = await getShopPlan(session.shop);
+      }
+    } catch {
+      approvalResult = "declined";
+    }
+  }
+
+  const usage = await getUsageSummary(session.shop);
+  return { currentTier: plan.tier, usage, approvalResult };
 };
 
 export default function UpgradePage() {
-  const { currentTier, usage } = useLoaderData<typeof loader>();
+  const { currentTier, usage, approvalResult } =
+    useLoaderData<typeof loader>();
   const subscribeFetcher = useFetcher();
   const [searchParams] = useSearchParams();
-  const success = searchParams.get("success") === "true";
-  const error = searchParams.get("error");
   const withTrial = searchParams.get("trial") === "true";
   const isSubmitting = subscribeFetcher.state !== "idle";
   const [redirecting, setRedirecting] = useState(false);
@@ -31,7 +77,7 @@ export default function UpgradePage() {
     cancelled?: boolean;
   } | null;
 
-  // Redirect to Shopify billing approval in parent frame
+  // Redirect to Shopify billing approval in top-level frame
   useEffect(() => {
     if (fetcherData?.confirmationUrl && !redirecting) {
       setRedirecting(true);
@@ -53,16 +99,30 @@ export default function UpgradePage() {
     }
   }
 
+  const runsDisplay =
+    usage.limits.maxRunsPerWeek === -1
+      ? "Unlimited"
+      : `${usage.runsUsed} / ${usage.limits.maxRunsPerWeek}`;
+
+  const productsDisplay =
+    usage.limits.maxProducts === -1
+      ? `${usage.productCount} (Unlimited)`
+      : `${usage.productCount} / ${usage.limits.maxProducts}`;
+
   return (
     <s-page heading="Choose Your Plan">
-      {success && (
+      <s-link slot="breadcrumb-actions" href="/app">
+        Home
+      </s-link>
+
+      {approvalResult === "success" && (
         <s-banner tone="success">
           Plan updated successfully! Your new features are now active.
         </s-banner>
       )}
-      {error && (
-        <s-banner tone="critical">
-          Something went wrong: {error}. Please try again.
+      {approvalResult === "declined" && (
+        <s-banner tone="warning">
+          Subscription was not approved. Please try again.
         </s-banner>
       )}
       {fetcherData?.error && (
@@ -73,47 +133,48 @@ export default function UpgradePage() {
           Subscription cancelled. You are now on the Free plan.
         </s-banner>
       )}
+      <s-stack direction="block" gap="base">
+        <s-section>
+          <s-text>
+            Pick the plan that fits your store. Upgrade or downgrade anytime.
+          </s-text>
+        </s-section>
 
-      <s-section>
         <PlanComparisonTable
           currentTier={currentTier}
           onSelectPlan={handleSelectPlan}
           isSubmitting={isSubmitting || redirecting}
         />
-      </s-section>
 
-      <s-section heading="Current Usage">
-        <s-stack direction="inline" gap="base">
-          <s-box padding="base" borderWidth="base" borderRadius="base">
-            <s-text>
-              <strong>Runs this week</strong>
-            </s-text>
-            <s-paragraph>
-              {usage.runsUsed} /{" "}
-              {usage.limits.maxRunsPerWeek === -1
-                ? "Unlimited"
-                : usage.limits.maxRunsPerWeek}
-            </s-paragraph>
-          </s-box>
-          <s-box padding="base" borderWidth="base" borderRadius="base">
-            <s-text>
-              <strong>Products</strong>
-            </s-text>
-            <s-paragraph>
-              {usage.productCount} /{" "}
-              {usage.limits.maxProducts === -1
-                ? "Unlimited"
-                : usage.limits.maxProducts}
-            </s-paragraph>
-          </s-box>
-          <s-box padding="base" borderWidth="base" borderRadius="base">
-            <s-text>
-              <strong>Agents</strong>
-            </s-text>
-            <s-paragraph>{usage.limits.maxAgents} available</s-paragraph>
-          </s-box>
-        </s-stack>
-      </s-section>
+        <s-section heading="Current Usage">
+          <s-stack direction="inline" gap="base">
+            <s-box padding="base" borderWidth="base" borderRadius="base">
+              <s-stack direction="block" gap="small">
+                <s-text>
+                  <strong>Runs this week</strong>
+                </s-text>
+                <s-text>{runsDisplay}</s-text>
+              </s-stack>
+            </s-box>
+            <s-box padding="base" borderWidth="base" borderRadius="base">
+              <s-stack direction="block" gap="small">
+                <s-text>
+                  <strong>Products</strong>
+                </s-text>
+                <s-text>{productsDisplay}</s-text>
+              </s-stack>
+            </s-box>
+            <s-box padding="base" borderWidth="base" borderRadius="base">
+              <s-stack direction="block" gap="small">
+                <s-text>
+                  <strong>Agents</strong>
+                </s-text>
+                <s-text>{usage.limits.maxAgents} available</s-text>
+              </s-stack>
+            </s-box>
+          </s-stack>
+        </s-section>
+      </s-stack>
     </s-page>
   );
 }

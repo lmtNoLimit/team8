@@ -70,8 +70,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const limits = PLAN_LIMITS[tier as PlanTier];
-  const appUrl = process.env.SHOPIFY_APP_URL || "";
-  const returnUrl = `${appUrl}/app/api/billing/callback?shop=${encodeURIComponent(session.shop)}`;
+
+  // Build embedded admin URL so Shopify redirects back into the admin iframe
+  // Format: https://admin.shopify.com/store/{shop}/apps/{apiKey}/app/upgrade
+  const shopDomain = session.shop.replace(".myshopify.com", "");
+  const apiKey = process.env.SHOPIFY_API_KEY;
+  const returnUrl = `https://admin.shopify.com/store/${shopDomain}/apps/${apiKey}/app/upgrade`;
 
   try {
     const { subscriptionId, confirmationUrl } = await createSubscription(

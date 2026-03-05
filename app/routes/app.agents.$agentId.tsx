@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import { getFindings } from "../services/finding-storage.server";
 import { getAgent } from "../agents/agent-registry.server";
-import { isAgentEnabled } from "../services/agent-settings.server";
+import { isAgentEnabled, getAgentTrustLevel } from "../services/agent-settings.server";
 import prisma from "../db.server";
 import { FindingCard } from "../components/finding-card";
 
@@ -29,7 +29,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     );
   }
 
-  const findings = await getFindings(session.shop, { agentId });
+  const [findings, trustLevel] = await Promise.all([
+    getFindings(session.shop, { agentId }),
+    getAgentTrustLevel(session.shop, agentId),
+  ]);
 
   let syncConfig = null;
   let reviewsByProduct: {
@@ -93,6 +96,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       description: agent.description,
     },
     findings,
+    trustLevel,
     syncConfig: syncConfig ? {
       status: syncConfig.status,
       provider: syncConfig.provider,
@@ -104,17 +108,22 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export default function AgentDetailPage() {
-  const { agent, findings, syncConfig, reviewsByProduct } = useLoaderData<typeof loader>();
+  const { agent, findings, trustLevel, syncConfig, reviewsByProduct } = useLoaderData<typeof loader>();
   const runFetcher = useFetcher();
   const revalidator = useRevalidator();
   const isRunning = runFetcher.state !== "idle";
 
   useEffect(() => {
     if (runFetcher.state === "idle" && runFetcher.data) {
-      revalidator.revalidate();
-      shopify.toast.show(`${agent.displayName} finished running`);
+      const result = runFetcher.data as { success?: boolean; error?: string };
+      if (result.success) {
+        revalidator.revalidate();
+        shopify.toast.show(`${agent.displayName} finished running`);
+      } else {
+        shopify.toast.show(result.error ?? "Agent run failed", { isError: true });
+      }
     }
-  }, [runFetcher.state, runFetcher.data]);
+  }, [runFetcher.state, runFetcher.data, agent.displayName, revalidator]);
 
   const actionNeeded = findings.filter((f) => f.type === "action_needed");
   const done = findings.filter((f) => f.type === "done");
@@ -195,7 +204,7 @@ export default function AgentDetailPage() {
             <s-section heading={`Needs Decision (${actionNeeded.length})`}>
               <s-stack direction="block" gap="base">
                 {actionNeeded.map((f) => (
-                  <FindingCard key={f.id} finding={f} />
+                  <FindingCard key={f.id} finding={f} trustLevel={trustLevel} />
                 ))}
               </s-stack>
             </s-section>
@@ -204,7 +213,7 @@ export default function AgentDetailPage() {
             <s-section heading={`Handled (${done.length})`}>
               <s-stack direction="block" gap="base">
                 {done.map((f) => (
-                  <FindingCard key={f.id} finding={f} />
+                  <FindingCard key={f.id} finding={f} trustLevel={trustLevel} />
                 ))}
               </s-stack>
             </s-section>
@@ -213,7 +222,7 @@ export default function AgentDetailPage() {
             <s-section heading={`Insights (${insights.length})`}>
               <s-stack direction="block" gap="base">
                 {insights.map((f) => (
-                  <FindingCard key={f.id} finding={f} />
+                  <FindingCard key={f.id} finding={f} trustLevel={trustLevel} />
                 ))}
               </s-stack>
             </s-section>
@@ -241,28 +250,38 @@ function JudgeMeSetupBanner() {
   return (
     <s-box padding="base" borderWidth="base" borderRadius="base">
       <s-stack direction="block" gap="base">
-        <s-text><strong>Connect Judge.me to sync your reviews automatically</strong></s-text>
+        <s-text><strong>Connect Judge.me to sync your product reviews</strong></s-text>
         <s-paragraph>
-          Follow these steps to connect your reviews. This only needs to be done once — after that, new reviews sync automatically.
+          Connect your Judge.me account to automatically import and monitor all your product reviews. This is a one-time setup.
         </s-paragraph>
-        <s-stack direction="block" gap="small">
-          <s-paragraph>
-            <strong>Step 1:</strong> Log in to your Judge.me dashboard at judge.me/dashboard
-          </s-paragraph>
-          <s-paragraph>
-            <strong>Step 2:</strong> Go to <strong>Settings</strong>, then click <strong>General settings</strong>, scroll down to find your <strong>API token</strong>
-          </s-paragraph>
-          <s-paragraph>
-            <strong>Step 3:</strong> Copy the token (it looks like a long string of letters and numbers) and paste it below
-          </s-paragraph>
-        </s-stack>
+
+        <s-banner tone="info">
+          <s-stack direction="block" gap="small">
+            <s-text><strong>How to find your Judge.me API token:</strong></s-text>
+            <s-paragraph>
+              1. Open <strong>Judge.me</strong> from your Shopify Admin sidebar (under Apps)
+            </s-paragraph>
+            <s-paragraph>
+              2. Click <strong>Settings</strong> in the Judge.me navigation
+            </s-paragraph>
+            <s-paragraph>
+              3. Click <strong>Integrations</strong>
+            </s-paragraph>
+            <s-paragraph>
+              4. Find the API section and click <strong>View API token</strong>
+            </s-paragraph>
+            <s-paragraph>
+              5. Copy the <strong>private API token</strong> (not the public one) and paste it below
+            </s-paragraph>
+          </s-stack>
+        </s-banner>
 
         <connectFetcher.Form method="post" action="/app/api/reviews/connect">
           <s-stack direction="block" gap="small">
             <s-text-field
-              label="Judge.me API Token"
+              label="Judge.me Private API Token"
               name="apiToken"
-              placeholder="Paste your Judge.me private API token here"
+              placeholder="e.g. abc123def456..."
               autocomplete="off"
             />
             <s-button
@@ -270,7 +289,7 @@ function JudgeMeSetupBanner() {
               type="submit"
               {...(isConnecting ? { loading: true } : {})}
             >
-              {isConnecting ? "Connecting..." : "Connect Judge.me"}
+              {isConnecting ? "Connecting & syncing reviews..." : "Connect Judge.me"}
             </s-button>
           </s-stack>
         </connectFetcher.Form>
@@ -278,7 +297,12 @@ function JudgeMeSetupBanner() {
         {connectResult?.error && (
           <s-banner tone="critical">{connectResult.error}</s-banner>
         )}
-        {connectResult?.success && (
+        {connectResult?.success && connectResult.synced === 0 && (
+          <s-banner tone="warning">
+            Connected successfully, but no reviews were found. If you have reviews in Judge.me, they may take a moment to appear. Try running the agent after a few minutes.
+          </s-banner>
+        )}
+        {connectResult?.success && (connectResult.synced ?? 0) > 0 && (
           <s-banner tone="success">
             Connected! {connectResult.synced} reviews synced from Judge.me.
           </s-banner>

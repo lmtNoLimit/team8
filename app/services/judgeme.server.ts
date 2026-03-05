@@ -35,6 +35,13 @@ function buildUrl(path: string, apiToken: string, shopDomain: string, extraParam
   return url.toString();
 }
 
+function authHeaders(apiToken: string): Record<string, string> {
+  return {
+    "Authorization": `Bearer ${apiToken}`,
+    "Content-Type": "application/json",
+  };
+}
+
 /** Validate API token by fetching review count */
 export async function validateToken(apiToken: string, shopDomain: string): Promise<boolean> {
   try {
@@ -57,10 +64,17 @@ export async function fetchAllReviews(apiToken: string, shopDomain: string): Pro
       page: String(page),
       per_page: String(perPage),
     });
-    const res = await fetch(url);
-    if (!res.ok) break;
+    const res = await fetch(url, { headers: authHeaders(apiToken) });
+    if (!res.ok) {
+      console.error(`[Judge.me] Failed to fetch reviews: ${res.status} ${res.statusText}`);
+      break;
+    }
 
     const data = await res.json();
+    if (page === 1) {
+      console.log(`[Judge.me] API response keys: ${Object.keys(data).join(", ")}`);
+      console.log(`[Judge.me] First page raw count: ${Array.isArray(data.reviews) ? data.reviews.length : "not an array"}`);
+    }
     const reviews: JudgeMeReview[] = data.reviews ?? [];
     if (reviews.length === 0) break;
 
@@ -116,7 +130,7 @@ export async function removeWebhooks(
 export function mapReviewToDb(review: JudgeMeReview, shop: string) {
   return {
     shop,
-    productId: review.product_external_id || "unknown",
+    productId: String(review.product_external_id || "unknown"),
     productTitle: review.product_title || "Unknown Product",
     source: "judgeme" as const,
     externalId: String(review.id),
