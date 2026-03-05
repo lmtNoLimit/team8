@@ -39,7 +39,7 @@ export async function updateAgentTrustLevel(
   return prisma.agentSetting.upsert({
     where: { shop_agentId: { shop, agentId } },
     update: { trustLevel },
-    create: { shop, agentId, trustLevel },
+    create: { shop, agentId, trustLevel, enabled: true },
   });
 }
 

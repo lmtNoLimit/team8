@@ -310,9 +310,16 @@ function AgentTrustControl({
   return (
     <s-box padding="base" borderWidth="base" borderRadius="base">
       <s-stack direction="block" gap="small">
-        <s-stack direction="inline" gap="small">
-          <s-checkbox
+        <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+          <s-stack direction="inline" gap="small" alignItems="center">
+            <s-text><strong>{agent.displayName}</strong></s-text>
+            {!optimisticEnabled && <s-badge tone="critical">Disabled</s-badge>}
+            {saved && <s-badge tone="success">Updated</s-badge>}
+            {isSaving && <s-badge>Saving...</s-badge>}
+          </s-stack>
+          <s-switch
             label={agent.displayName}
+            labelAccessibilityVisibility="exclusive"
             {...(optimisticEnabled ? { checked: true } : {})}
             onChange={() => {
               const formData = new FormData();
@@ -322,9 +329,6 @@ function AgentTrustControl({
               toggleFetcher.submit(formData, { method: "post" });
             }}
           />
-          {!optimisticEnabled && <s-badge tone="critical">Disabled</s-badge>}
-          {saved && <s-badge tone="success">Updated</s-badge>}
-          {isSaving && <s-badge>Saving...</s-badge>}
         </s-stack>
         <s-paragraph>{agent.description}</s-paragraph>
         {optimisticEnabled && (
