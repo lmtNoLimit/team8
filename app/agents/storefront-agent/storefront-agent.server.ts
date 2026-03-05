@@ -32,6 +32,7 @@ export const storefrontAgent: Agent = {
           bounceRate: 0.52,
           storeAvg: 0.31,
           pageHandle: "red-sneakers",
+          estimatedRevenue: 300,
         },
         deduplicationKey: "storefront:high-bounce-red-sneakers",
       },
@@ -50,7 +51,7 @@ export const storefrontAgent: Agent = {
         title: "Mobile checkout takes 4.2s to load (target: < 3s)",
         description:
           "Mobile checkout performance is below target. Main bottleneck: unoptimized JavaScript bundle.",
-        metadata: { loadTime: 4.2, target: 3.0, bottleneck: "js-bundle" },
+        metadata: { loadTime: 4.2, target: 3.0, bottleneck: "js-bundle", estimatedRevenue: 180 },
         deduplicationKey: "storefront:mobile-checkout-speed",
       },
     ];

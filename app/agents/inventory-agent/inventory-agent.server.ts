@@ -29,7 +29,7 @@ export const inventoryAgent: Agent = {
           productTitle: "Blue Widget",
           daysLeft: 2,
         }),
-        metadata: { currentStock: 14, dailySales: 7, daysUntilStockout: 2 },
+        metadata: { currentStock: 14, dailySales: 7, daysUntilStockout: 2, estimatedRevenue: 490 },
         deduplicationKey: "inventory:stockout-blue-widget",
       },
       {
@@ -38,7 +38,7 @@ export const inventoryAgent: Agent = {
         title: "5 products have zero sales in 30 days (dead stock)",
         description:
           "These products haven't sold in a month. Consider discounting or bundling them.",
-        metadata: { deadStockCount: 5, totalInventoryValue: "$2,340" },
+        metadata: { deadStockCount: 5, totalInventoryValue: "$2,340", estimatedRevenue: 2340 },
         deduplicationKey: "inventory:dead-stock",
       },
       {

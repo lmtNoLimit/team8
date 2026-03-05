@@ -25,7 +25,7 @@ export const contentAgent: Agent = {
         description:
           "Short descriptions hurt conversion and AI discoverability. Expanded drafts are ready for review.",
         action: JSON.stringify({ type: "expandDescriptions", productCount: 7 }),
-        metadata: { avgWordCount: 23, targetWordCount: 150 },
+        metadata: { avgWordCount: 23, targetWordCount: 150, estimatedRevenue: 200 },
         deduplicationKey: "content:thin-descriptions",
       },
       {
@@ -34,7 +34,7 @@ export const contentAgent: Agent = {
         title: "3 duplicate product titles detected",
         description:
           "Products share identical titles which confuses search engines and AI agents.",
-        metadata: { duplicateGroups: 2 },
+        metadata: { duplicateGroups: 2, estimatedRevenue: 60 },
         deduplicationKey: "content:duplicate-titles",
       },
       {
@@ -43,7 +43,7 @@ export const contentAgent: Agent = {
         title: "'Sustainable packaging' trending +340% in AI searches",
         description:
           "You have 3 matching products not optimized for this trend. Consider updating their descriptions.",
-        metadata: { keyword: "sustainable packaging", matchingProducts: 3 },
+        metadata: { keyword: "sustainable packaging", matchingProducts: 3, estimatedRevenue: 150 },
         deduplicationKey: "content:trending-sustainable",
       },
     ];

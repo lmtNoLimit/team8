@@ -11,14 +11,17 @@ interface FindingsSectionProps {
     description: string;
     action?: string | null;
     status: string;
+    metadata?: unknown;
   }>;
   emptyMessage: string;
+  trustMap?: Record<string, string>;
 }
 
 export function FindingsSection({
   heading,
   findings,
   emptyMessage,
+  trustMap,
 }: FindingsSectionProps) {
   return (
     <s-section heading={`${heading} (${findings.length})`}>
@@ -27,7 +30,14 @@ export function FindingsSection({
       ) : (
         <s-stack direction="block" gap="base">
           {findings.map((finding) => (
-            <FindingCard key={finding.id} finding={finding} />
+            <FindingCard
+              key={finding.id}
+              finding={finding}
+              trustLevel={
+                (trustMap?.[finding.agentId] as "advisor" | "assistant" | "autopilot") ??
+                "assistant"
+              }
+            />
           ))}
         </s-stack>
       )}

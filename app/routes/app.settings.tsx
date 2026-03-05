@@ -40,6 +40,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return data({ success: true, action: "trust_level", agentId });
   }
 
+  if (actionType === "update_briefing") {
+    await updateStoreProfile(session.shop, {
+      briefingEmail: (formData.get("briefingEmail") as string) || undefined,
+      briefingEnabled: formData.get("briefingEnabled") === "true",
+    });
+    return data({ success: true, action: "briefing" });
+  }
+
   return data({ success: false, error: "Unknown action" }, { status: 400 });
 };
 
@@ -131,10 +139,15 @@ export default function SettingsPage() {
         </s-stack>
       </s-section>
 
-      <s-section heading="Notifications">
-        <s-banner tone="info">
-          Email briefings and notification preferences coming soon.
-        </s-banner>
+      <s-section heading="Morning Briefing Email">
+        <s-paragraph>
+          Get your daily briefing delivered to your inbox every morning.
+          No need to open Shopify — your top priorities come to you.
+        </s-paragraph>
+        <BriefingEmailConfig
+          email={profile.briefingEmail ?? ""}
+          enabled={profile.briefingEnabled ?? false}
+        />
       </s-section>
 
       <s-section heading="API Configuration">
@@ -156,6 +169,78 @@ export default function SettingsPage() {
         </s-stack>
       </s-section>
     </s-page>
+  );
+}
+
+function BriefingEmailConfig({
+  email,
+  enabled,
+}: {
+  email: string;
+  enabled: boolean;
+}) {
+  const fetcher = useFetcher();
+  const testFetcher = useFetcher();
+  const isSaving = fetcher.state !== "idle";
+  const saved =
+    fetcher.data != null &&
+    (fetcher.data as { action?: string }).action === "briefing";
+  const isSending = testFetcher.state !== "idle";
+  const testResult = testFetcher.data as { success?: boolean; reason?: string } | null;
+
+  return (
+    <s-stack direction="block" gap="base">
+      <fetcher.Form method="post">
+        <input type="hidden" name="_action" value="update_briefing" />
+        <s-stack direction="block" gap="base">
+          <s-text-field
+            label="Email address"
+            name="briefingEmail"
+            defaultValue={email}
+            placeholder="you@example.com"
+          />
+          <s-choice-list name="briefingEnabled">
+            <s-choice
+              value="true"
+              {...(enabled ? { selected: true } : {})}
+            >
+              Send me a daily morning briefing
+            </s-choice>
+          </s-choice-list>
+          <s-stack direction="inline" gap="small">
+            <s-button
+              variant="primary"
+              type="submit"
+              {...(isSaving ? { loading: true } : {})}
+            >
+              Save
+            </s-button>
+            {saved && <s-badge tone="success">Saved</s-badge>}
+          </s-stack>
+        </s-stack>
+      </fetcher.Form>
+
+      {enabled && email && (
+        <s-stack direction="inline" gap="small">
+          <s-button
+            variant="secondary"
+            onClick={() =>
+              testFetcher.submit(
+                {},
+                { method: "POST", action: "/app/api/briefing/send" },
+              )
+            }
+            {...(isSending ? { loading: true } : {})}
+          >
+            Send Test Email
+          </s-button>
+          {testResult?.success && <s-badge tone="success">Sent!</s-badge>}
+          {testResult && !testResult.success && (
+            <s-badge tone="critical">{testResult.reason || "Failed"}</s-badge>
+          )}
+        </s-stack>
+      )}
+    </s-stack>
   );
 }
 

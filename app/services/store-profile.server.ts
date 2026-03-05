@@ -5,6 +5,8 @@ export interface StoreProfileData {
   industry?: string;
   targetAudience?: string;
   storeDescription?: string;
+  briefingEmail?: string;
+  briefingEnabled?: boolean;
 }
 
 export async function getStoreProfile(shop: string) {
@@ -16,6 +18,9 @@ export async function getStoreProfile(shop: string) {
       industry: "",
       targetAudience: "",
       storeDescription: "",
+      briefingEmail: null,
+      briefingEnabled: false,
+      briefingHour: 7,
     }
   );
 }

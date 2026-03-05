@@ -1,4 +1,5 @@
-import { useFetcher } from "react-router";
+import { useFetcher, useRevalidator } from "react-router";
+import { useEffect } from "react";
 
 interface AgentStatusBarProps {
   agents: Array<{
@@ -24,7 +25,15 @@ function AgentRow({
   agent: { agentId: string; displayName: string; description: string };
 }) {
   const fetcher = useFetcher();
+  const revalidator = useRevalidator();
   const isRunning = fetcher.state !== "idle";
+
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data) {
+      revalidator.revalidate();
+      shopify.toast.show(`${agent.displayName} finished`);
+    }
+  }, [fetcher.state, fetcher.data]);
 
   return (
     <s-box padding="base" borderWidth="base" borderRadius="base">
