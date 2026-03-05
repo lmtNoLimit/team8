@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # =============================================================
-# Shopify App Template (MongoDB) - One-Command Setup
+# Team8 Shopify App - One-Command Setup
 # =============================================================
 # Chay lenh nay trong Terminal:
 #
-#   curl -fsSL https://raw.githubusercontent.com/sellersmith/shopify-app-template-react-router-mongodb/main/setup.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/lmtNoLimit/team8/main/setup.sh | bash
 #
 # Hoac neu da clone repo:
 #
@@ -27,8 +27,8 @@ print_success() { echo -e "${GREEN}  ✓${NC} ${1}"; }
 print_warning() { echo -e "${YELLOW}  ⚠${NC} ${1}"; }
 print_error() { echo -e "${RED}  ✗${NC} ${1}"; }
 
-REPO_URL="https://github.com/sellersmith/shopify-app-template-react-router-mongodb.git"
-PROJECT_DIR="$HOME/projects/shopify-app-template-react-router-mongodb"
+REPO_URL="https://github.com/lmtNoLimit/team8.git"
+PROJECT_DIR="$HOME/projects/team8"
 
 # --------------------------------------------------
 # 1. Homebrew

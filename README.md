@@ -11,7 +11,7 @@ Template Shopify app su dung React Router v7 va MongoDB Atlas database.
 Mo **Terminal** (tim trong Launchpad hoac nhan `Cmd + Space` go "Terminal"), dan lenh sau va nhan Enter:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sellersmith/shopify-app-template-react-router-mongodb/main/setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/lmtNoLimit/team8/main/setup.sh | bash
 ```
 
 Script se tu dong cai tat ca nhung gi can thiet: Homebrew, Git, Node.js, Shopify CLI, va project.
@@ -21,7 +21,7 @@ Script se tu dong cai tat ca nhung gi can thiet: Homebrew, Git, Node.js, Shopify
 Tao file `.env` tu file mau:
 
 ```bash
-cd ~/projects/shopify-app-template-react-router-mongodb
+cd ~/projects/team8
 cp .env.example .env
 ```
 
