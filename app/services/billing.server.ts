@@ -9,24 +9,16 @@ import type { AdminClient } from "../lib/agent-interface";
 // --- ShopPlan ---
 
 export async function getShopPlan(shop: string) {
-  // Use upsert to avoid race condition when multiple concurrent calls
-  // both find no record and try to create (unique constraint violation)
+  const existing = await prisma.shopPlan.findUnique({ where: { shop } });
+  if (existing) return existing;
+
+  // First-time setup: upsert to avoid race condition, then enforce free tier limits once
   const plan = await prisma.shopPlan.upsert({
     where: { shop },
     update: {},
     create: { shop, tier: "free", subscriptionStatus: "active" },
   });
-
-  // RT-3: enforce limits on first creation so default-enabled agents respect free tier
-  // Only run if this is a newly created free plan (no subscription, default state)
-  if (
-    plan.tier === "free" &&
-    !plan.shopifySubscriptionId &&
-    plan.subscriptionStatus === "active"
-  ) {
-    await enforcePlanLimits(shop, "free");
-  }
-
+  await enforcePlanLimits(shop, "free");
   return plan;
 }
 
