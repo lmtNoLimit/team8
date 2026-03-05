@@ -68,13 +68,14 @@ export async function executeAllAgents(
     if (result.status === "fulfilled") {
       return {
         agentId: agent.agentId,
-        success: true,
+        success: true as const,
         findingsCount: result.value.length,
+        findings: result.value,
       };
     }
     return {
       agentId: agent.agentId,
-      success: false,
+      success: false as const,
       error: (result.reason as Error).message,
     };
   });

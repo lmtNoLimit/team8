@@ -26,7 +26,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       id,
       status as "pending" | "applied" | "dismissed",
     );
-    return data({ success: true, finding: updated });
+    return data({
+      success: true,
+      finding: {
+        id: updated.id,
+        title: updated.title,
+        status: updated.status,
+        agentId: updated.agentId,
+      },
+    });
   } catch (error) {
     return data(
       { error: (error as Error).message },

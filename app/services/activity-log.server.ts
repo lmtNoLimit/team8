@@ -31,6 +31,13 @@ export interface ActivityLogFilters {
   offset?: number;
 }
 
+export async function getLastAgentRun(shop: string) {
+  return prisma.activityLog.findFirst({
+    where: { shop, type: "agent_run" },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
 export async function getActivityLog(
   shop: string,
   filters?: ActivityLogFilters,

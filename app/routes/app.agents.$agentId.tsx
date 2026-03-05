@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useFetcher, data } from "react-router";
+import { useLoaderData, useFetcher, useRevalidator, data } from "react-router";
+import { useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import { getFindings } from "../services/finding-storage.server";
 import { getAgent } from "../agents/agent-registry.server";
@@ -105,7 +106,15 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 export default function AgentDetailPage() {
   const { agent, findings, syncConfig, reviewsByProduct } = useLoaderData<typeof loader>();
   const runFetcher = useFetcher();
+  const revalidator = useRevalidator();
   const isRunning = runFetcher.state !== "idle";
+
+  useEffect(() => {
+    if (runFetcher.state === "idle" && runFetcher.data) {
+      revalidator.revalidate();
+      shopify.toast.show(`${agent.displayName} finished running`);
+    }
+  }, [runFetcher.state, runFetcher.data]);
 
   const actionNeeded = findings.filter((f) => f.type === "action_needed");
   const done = findings.filter((f) => f.type === "done");

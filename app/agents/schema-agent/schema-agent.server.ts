@@ -39,6 +39,7 @@ export const schemaAgent: Agent = {
           page: "homepage",
           schemaType: "Organization",
         }),
+        metadata: { estimatedRevenue: 75 },
         deduplicationKey: "schema:missing-org-schema",
       },
       {
@@ -47,7 +48,7 @@ export const schemaAgent: Agent = {
         title: "FAQ schema could boost 5 collection pages",
         description:
           "Adding FAQ structured data to your top collection pages could enable rich FAQ snippets.",
-        metadata: { eligiblePages: 5 },
+        metadata: { eligiblePages: 5, estimatedRevenue: 90 },
         deduplicationKey: "schema:faq-opportunity",
       },
     ];

@@ -100,6 +100,9 @@ model StoreProfile {
   industry         String?
   targetAudience   String?
   storeDescription String?
+  briefingEmail    String?
+  briefingEnabled  Boolean  @default(false)
+  briefingHour     Int      @default(7) // Hour in merchant's local time (0-23)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
