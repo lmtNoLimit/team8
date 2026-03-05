@@ -53,8 +53,22 @@ export default function UpgradePage() {
     }
   }
 
+  const runsDisplay =
+    usage.limits.maxRunsPerWeek === -1
+      ? "Unlimited"
+      : `${usage.runsUsed} / ${usage.limits.maxRunsPerWeek}`;
+
+  const productsDisplay =
+    usage.limits.maxProducts === -1
+      ? `${usage.productCount} (Unlimited)`
+      : `${usage.productCount} / ${usage.limits.maxProducts}`;
+
   return (
     <s-page heading="Choose Your Plan">
+      <s-link slot="breadcrumb-actions" href="/app">
+        Home
+      </s-link>
+
       {success && (
         <s-banner tone="success">
           Plan updated successfully! Your new features are now active.
@@ -75,6 +89,12 @@ export default function UpgradePage() {
       )}
 
       <s-section>
+        <s-text>
+          Pick the plan that fits your store. Upgrade or downgrade anytime.
+        </s-text>
+      </s-section>
+
+      <s-section>
         <PlanComparisonTable
           currentTier={currentTier}
           onSelectPlan={handleSelectPlan}
@@ -85,32 +105,28 @@ export default function UpgradePage() {
       <s-section heading="Current Usage">
         <s-stack direction="inline" gap="base">
           <s-box padding="base" borderWidth="base" borderRadius="base">
-            <s-text>
-              <strong>Runs this week</strong>
-            </s-text>
-            <s-paragraph>
-              {usage.runsUsed} /{" "}
-              {usage.limits.maxRunsPerWeek === -1
-                ? "Unlimited"
-                : usage.limits.maxRunsPerWeek}
-            </s-paragraph>
+            <s-stack direction="block" gap="small">
+              <s-text>
+                <strong>Runs this week</strong>
+              </s-text>
+              <s-text>{runsDisplay}</s-text>
+            </s-stack>
           </s-box>
           <s-box padding="base" borderWidth="base" borderRadius="base">
-            <s-text>
-              <strong>Products</strong>
-            </s-text>
-            <s-paragraph>
-              {usage.productCount} /{" "}
-              {usage.limits.maxProducts === -1
-                ? "Unlimited"
-                : usage.limits.maxProducts}
-            </s-paragraph>
+            <s-stack direction="block" gap="small">
+              <s-text>
+                <strong>Products</strong>
+              </s-text>
+              <s-text>{productsDisplay}</s-text>
+            </s-stack>
           </s-box>
           <s-box padding="base" borderWidth="base" borderRadius="base">
-            <s-text>
-              <strong>Agents</strong>
-            </s-text>
-            <s-paragraph>{usage.limits.maxAgents} available</s-paragraph>
+            <s-stack direction="block" gap="small">
+              <s-text>
+                <strong>Agents</strong>
+              </s-text>
+              <s-text>{usage.limits.maxAgents} available</s-text>
+            </s-stack>
           </s-box>
         </s-stack>
       </s-section>

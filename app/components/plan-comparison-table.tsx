@@ -13,6 +13,26 @@ const TIER_META: Record<PlanTier, { name: string; tagline: string }> = {
   agency: { name: "Agency", tagline: "Multi-store pros" },
 };
 
+const RECOMMENDED_TIER: PlanTier = "pro";
+
+function formatLimit(value: number, suffix: string): string {
+  return value === -1 ? `Unlimited ${suffix}` : `${value} ${suffix}`;
+}
+
+function getPlanFeatures(tier: PlanTier): string[] {
+  const limits = PLAN_LIMITS[tier];
+  const features = [
+    formatLimit(limits.maxProducts, "products"),
+    `${limits.maxAgents} agents`,
+    formatLimit(limits.maxRunsPerWeek, "runs/week"),
+    `Trust: ${limits.allowedTrustLevels.join(", ")}`,
+  ];
+  if (limits.maxStores > 1) {
+    features.push(`Up to ${limits.maxStores} stores`);
+  }
+  return features;
+}
+
 export function PlanComparisonTable({
   currentTier,
   onSelectPlan,
@@ -21,50 +41,56 @@ export function PlanComparisonTable({
   const currentIndex = TIER_ORDER.indexOf(currentTier as PlanTier);
 
   return (
-    <s-stack direction="inline" gap="base">
+    <s-grid
+      gridTemplateColumns="@container (inline-size > 700px) repeat(4, 1fr), repeat(2, 1fr)"
+      gap="base"
+    >
       {TIER_ORDER.map((tier) => {
         const limits = PLAN_LIMITS[tier];
         const meta = TIER_META[tier];
         const isCurrent = tier === currentTier;
+        const isRecommended = tier === RECOMMENDED_TIER;
         const tierIndex = TIER_ORDER.indexOf(tier);
         const isDowngrade = tierIndex < currentIndex;
+        const features = getPlanFeatures(tier);
 
         return (
-          <s-box key={tier} padding="base" borderWidth="base" borderRadius="base">
-            <s-stack direction="block" gap="small">
-              <s-text>
-                <strong>{meta.name}</strong>
-              </s-text>
-              <s-text>{meta.tagline}</s-text>
+          <s-box
+            key={tier}
+            padding="base"
+            borderWidth="base"
+            borderRadius="base"
+          >
+            <s-stack direction="block" gap="base">
+              <s-stack direction="block" gap="small">
+                <s-stack direction="inline" gap="small">
+                  <s-text>
+                    <strong>{meta.name}</strong>
+                  </s-text>
+                  {isRecommended && <s-badge tone="info">Popular</s-badge>}
+                </s-stack>
+                <s-text>{meta.tagline}</s-text>
+              </s-stack>
+
               <s-text>
                 <strong>
                   {limits.price === 0 ? "Free" : `$${limits.price}/mo`}
                 </strong>
               </s-text>
-              <s-paragraph>
-                {limits.maxProducts === -1
-                  ? "Unlimited"
-                  : limits.maxProducts}{" "}
-                products
-              </s-paragraph>
-              <s-paragraph>{limits.maxAgents} agents</s-paragraph>
-              <s-paragraph>
-                {limits.maxRunsPerWeek === -1
-                  ? "Unlimited"
-                  : limits.maxRunsPerWeek}{" "}
-                runs/week
-              </s-paragraph>
-              <s-paragraph>
-                Trust: {limits.allowedTrustLevels.join(", ")}
-              </s-paragraph>
-              {limits.maxStores > 1 && (
-                <s-paragraph>Up to {limits.maxStores} stores</s-paragraph>
-              )}
+
+              <s-divider />
+
+              <s-stack direction="block" gap="small">
+                {features.map((feature) => (
+                  <s-text key={feature}>{feature}</s-text>
+                ))}
+              </s-stack>
+
               {isCurrent ? (
-                <s-badge tone="info">Current Plan</s-badge>
+                <s-badge tone="success">Current plan</s-badge>
               ) : (
                 <s-button
-                  variant={isDowngrade ? "secondary" : "primary"}
+                  variant={isRecommended ? "primary" : "secondary"}
                   onClick={() => onSelectPlan(tier)}
                   {...(isSubmitting ? { loading: true } : {})}
                 >
@@ -75,6 +101,6 @@ export function PlanComparisonTable({
           </s-box>
         );
       })}
-    </s-stack>
+    </s-grid>
   );
 }
