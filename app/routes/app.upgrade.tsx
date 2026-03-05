@@ -87,49 +87,48 @@ export default function UpgradePage() {
           Subscription cancelled. You are now on the Free plan.
         </s-banner>
       )}
+      <s-stack direction="block" gap="base">
+        <s-section>
+          <s-text>
+            Pick the plan that fits your store. Upgrade or downgrade anytime.
+          </s-text>
+        </s-section>
 
-      <s-section>
-        <s-text>
-          Pick the plan that fits your store. Upgrade or downgrade anytime.
-        </s-text>
-      </s-section>
-
-      <s-section>
         <PlanComparisonTable
           currentTier={currentTier}
           onSelectPlan={handleSelectPlan}
           isSubmitting={isSubmitting || redirecting}
         />
-      </s-section>
 
-      <s-section heading="Current Usage">
-        <s-stack direction="inline" gap="base">
-          <s-box padding="base" borderWidth="base" borderRadius="base">
-            <s-stack direction="block" gap="small">
-              <s-text>
-                <strong>Runs this week</strong>
-              </s-text>
-              <s-text>{runsDisplay}</s-text>
-            </s-stack>
-          </s-box>
-          <s-box padding="base" borderWidth="base" borderRadius="base">
-            <s-stack direction="block" gap="small">
-              <s-text>
-                <strong>Products</strong>
-              </s-text>
-              <s-text>{productsDisplay}</s-text>
-            </s-stack>
-          </s-box>
-          <s-box padding="base" borderWidth="base" borderRadius="base">
-            <s-stack direction="block" gap="small">
-              <s-text>
-                <strong>Agents</strong>
-              </s-text>
-              <s-text>{usage.limits.maxAgents} available</s-text>
-            </s-stack>
-          </s-box>
-        </s-stack>
-      </s-section>
+        <s-section heading="Current Usage">
+          <s-stack direction="inline" gap="base">
+            <s-box padding="base" borderWidth="base" borderRadius="base">
+              <s-stack direction="block" gap="small">
+                <s-text>
+                  <strong>Runs this week</strong>
+                </s-text>
+                <s-text>{runsDisplay}</s-text>
+              </s-stack>
+            </s-box>
+            <s-box padding="base" borderWidth="base" borderRadius="base">
+              <s-stack direction="block" gap="small">
+                <s-text>
+                  <strong>Products</strong>
+                </s-text>
+                <s-text>{productsDisplay}</s-text>
+              </s-stack>
+            </s-box>
+            <s-box padding="base" borderWidth="base" borderRadius="base">
+              <s-stack direction="block" gap="small">
+                <s-text>
+                  <strong>Agents</strong>
+                </s-text>
+                <s-text>{usage.limits.maxAgents} available</s-text>
+              </s-stack>
+            </s-box>
+          </s-stack>
+        </s-section>
+      </s-stack>
     </s-page>
   );
 }

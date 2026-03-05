@@ -41,10 +41,7 @@ export function PlanComparisonTable({
   const currentIndex = TIER_ORDER.indexOf(currentTier as PlanTier);
 
   return (
-    <s-grid
-      gridTemplateColumns="@container (inline-size > 700px) repeat(4, 1fr), repeat(2, 1fr)"
-      gap="base"
-    >
+    <s-grid gridTemplateColumns="repeat(12, 1fr)" gap="base">
       {TIER_ORDER.map((tier) => {
         const limits = PLAN_LIMITS[tier];
         const meta = TIER_META[tier];
@@ -55,50 +52,47 @@ export function PlanComparisonTable({
         const features = getPlanFeatures(tier);
 
         return (
-          <s-box
-            key={tier}
-            padding="base"
-            borderWidth="base"
-            borderRadius="base"
-          >
-            <s-stack direction="block" gap="base">
-              <s-stack direction="block" gap="small">
-                <s-stack direction="inline" gap="small">
-                  <s-text>
-                    <strong>{meta.name}</strong>
-                  </s-text>
-                  {isRecommended && <s-badge tone="info">Popular</s-badge>}
+          <s-grid-item key={tier} gridColumn="span 3" gridRow="span 1">
+            <s-box padding="base" borderWidth="base" borderRadius="base" background="base">
+              <s-stack direction="block" gap="base">
+                <s-stack direction="block" gap="small">
+                  <s-stack direction="inline" gap="small">
+                    <s-text>
+                      <strong>{meta.name}</strong>
+                    </s-text>
+                    {isRecommended && <s-badge tone="info">Popular</s-badge>}
+                  </s-stack>
+                  <s-text>{meta.tagline}</s-text>
                 </s-stack>
-                <s-text>{meta.tagline}</s-text>
+
+                <s-text>
+                  <strong>
+                    {limits.price === 0 ? "Free" : `$${limits.price}/mo`}
+                  </strong>
+                </s-text>
+
+                <s-divider />
+
+                <s-stack direction="block" gap="small">
+                  {features.map((feature) => (
+                    <s-text key={feature}>{feature}</s-text>
+                  ))}
+                </s-stack>
+
+                {isCurrent ? (
+                  <s-badge tone="success">Current plan</s-badge>
+                ) : (
+                  <s-button
+                    variant={isRecommended ? "primary" : "secondary"}
+                    onClick={() => onSelectPlan(tier)}
+                    {...(isSubmitting ? { loading: true } : {})}
+                  >
+                    {isDowngrade ? "Downgrade" : "Upgrade"}
+                  </s-button>
+                )}
               </s-stack>
-
-              <s-text>
-                <strong>
-                  {limits.price === 0 ? "Free" : `$${limits.price}/mo`}
-                </strong>
-              </s-text>
-
-              <s-divider />
-
-              <s-stack direction="block" gap="small">
-                {features.map((feature) => (
-                  <s-text key={feature}>{feature}</s-text>
-                ))}
-              </s-stack>
-
-              {isCurrent ? (
-                <s-badge tone="success">Current plan</s-badge>
-              ) : (
-                <s-button
-                  variant={isRecommended ? "primary" : "secondary"}
-                  onClick={() => onSelectPlan(tier)}
-                  {...(isSubmitting ? { loading: true } : {})}
-                >
-                  {isDowngrade ? "Downgrade" : "Upgrade"}
-                </s-button>
-              )}
-            </s-stack>
-          </s-box>
+            </s-box>
+          </s-grid-item>
         );
       })}
     </s-grid>
