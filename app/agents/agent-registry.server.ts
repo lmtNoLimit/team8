@@ -1,8 +1,5 @@
 import type { Agent } from "../lib/agent-interface";
 
-import { aeoAgent } from "./aeo-agent/aeo-agent.server";
-import { contentAgent } from "./content-agent/content-agent.server";
-import { schemaAgent } from "./schema-agent/schema-agent.server";
 import { inventoryAgent } from "./inventory-agent/inventory-agent.server";
 import { storefrontAgent } from "./storefront-agent/storefront-agent.server";
 import { reviewAgent } from "./review-agent/review-agent.server";
@@ -17,9 +14,6 @@ import { trendAgent } from "./trend-agent/trend-agent.server";
  * 3. Import + add to agentList below
  */
 const agentList: Agent[] = [
-  aeoAgent,
-  contentAgent,
-  schemaAgent,
   inventoryAgent,
   storefrontAgent,
   reviewAgent,

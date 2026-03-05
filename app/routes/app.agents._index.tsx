@@ -13,9 +13,6 @@ import { getShopPlan } from "../services/billing.server";
 import { getPlanLimits, type PlanTier } from "../lib/plan-config";
 
 const AGENT_LABELS: Record<string, string> = {
-  aeo: "AEO",
-  content: "Content",
-  schema: "Schema",
   inventory: "Inventory",
   storefront: "Storefront",
   review: "Review",

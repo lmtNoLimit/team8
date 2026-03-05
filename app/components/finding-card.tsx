@@ -18,9 +18,6 @@ const PRIORITY_LABELS: Record<number, string> = {
 };
 
 const AGENT_LABELS: Record<string, string> = {
-  aeo: "AEO",
-  content: "Content",
-  schema: "Schema",
   inventory: "Inventory",
   storefront: "Storefront",
   review: "Review",
