@@ -54,10 +54,21 @@ Routes are discovered automatically via `@react-router/fs-routes` (`flatRoutes()
 - `app.agents._index.tsx` — My Team page (agents list + activity tab)
 - `app.agents.$agentId.tsx` — Individual agent detail page
 - `app.settings.tsx` — App settings (store profile, trust levels)
-- `app.api.*.tsx` — API routes (agent runs, finding status, review seed)
+- `app.upgrade.tsx` — Plan comparison table and upgrade flow
+- `app.api.*.tsx` — API routes (agent runs, finding status, review seed, billing)
+  - `app.api.agents.$agentId.run.tsx` — Execute single agent
+  - `app.api.agents.run-all.tsx` — Execute all enabled agents
+  - `app.api.agents.findings.tsx` — Upsert finding
+  - `app.api.agents.findings.$id.status.tsx` — Update finding status
+  - `app.api.reviews.seed.tsx` — Seed test data
+  - `app.api.billing.subscribe.tsx` — Initiate subscription checkout
+  - `app.api.billing.callback.tsx` — Subscription callback
 - `auth.$.tsx` — OAuth callback catch-all
 - `auth.login/route.tsx` — Manual shop login form
 - `webhooks.app.*.tsx` — Webhook handlers
+  - `webhooks.app.subscriptions_update.tsx` — Subscription state change
+  - `webhooks.app.uninstalled.tsx` — App uninstall cleanup
+  - `webhooks.app.scopes_update.tsx` — Permission changes
 
 ### Auth Flow
 
@@ -70,7 +81,7 @@ Routes are discovered automatically via `@react-router/fs-routes` (`flatRoutes()
 ### Database
 
 - Prisma with MongoDB (`prisma/schema.prisma`)
-- Models: `Session`, `AgentFinding`, `Review`, `AgentSetting`, `StoreProfile`, `ActivityLog`
+- Models: `Session`, `AgentFinding`, `Review`, `AgentSetting`, `StoreProfile`, `ActivityLog`, `ShopPlan`, `ProductCount`, `RunFrequencyLog`, `StoreAssignment`
 - MongoDB uses `prisma db push` (no migrations)
 - After changing schema: `npx prisma db push && npx prisma generate`
 
@@ -79,6 +90,50 @@ Routes are discovered automatically via `@react-router/fs-routes` (`flatRoutes()
 - Wrapper at `app/lib/ai.server.ts` — `askClaude()` and `askClaudeJSON<T>()`
 - Uses `@anthropic-ai/sdk`, reads `ANTHROPIC_API_KEY` from env
 - Model: `claude-sonnet-4-6`
+
+### Billing System
+
+Core billing logic in `app/services/billing.server.ts` with GraphQL mutations in `app/services/billing-mutations.server.ts`.
+
+**Plan Tiers (4):**
+- Free: $0/month (2 agents, 2 runs/week, 25 products, Advisor only, 1 store)
+- Starter: $29/month (4 agents, 7 runs/week, 100 products, Advisor + Assistant, 1 store)
+- Pro: $99/month (6 agents, unlimited runs, unlimited products, all trust levels, 1 store)
+- Agency: $249/month (6 agents, unlimited runs, unlimited products, all trust levels, 5 stores + usage overage at $29/store)
+
+**Key Services:**
+- `getShopPlan(shop)` — Initialize or fetch subscription tier
+- `canRunAgents(shop)` — Pre-run gate (checks subscription status, trial, product limit, weekly frequency)
+- `enforcePlanLimits(shop, tier)` — On downgrade: disable agents beyond limit, downgrade trust levels
+- `getUsageSummary(shop)` — For UI (runs used, product count, limits)
+- `getManagedStores(shop)` — Multi-store management (Agency tier)
+- `createSubscription()` — Shopify billing approval with optional trial
+- `getSubscriptionStatus()` — Poll Shopify
+- `cancelSubscription()` — Downgrade to Free
+- `createUsageRecord()` — Track extra Agency stores
+
+**Subscription Lifecycle:**
+1. User selects plan on `/app/upgrade` → `POST /app/api/billing/subscribe`
+2. `createSubscription()` creates Shopify AppSubscription
+3. Returns confirmation URL (browser redirects to Shopify approval)
+4. User approves → Shopify webhook to `/webhooks/app/subscriptions_update`
+5. Webhook updates ShopPlan tier and calls `enforcePlanLimits()`
+6. Next agent run enforces new limits
+
+**Feature Gating:**
+- Agent count: first N agents enabled by tier (rest disabled)
+- Trust levels: plan defines `allowedTrustLevels` array (Free=[Advisor], Starter=[Advisor,Assistant], Pro/Agency=[all])
+- Run frequency: `canRunAgents()` checks weekly runs vs plan limit
+- Products: `canRunAgents()` checks product count vs plan limit (24-hour cached)
+
+**To add a new plan tier:**
+1. Update `PlanTier` type and `PLAN_LIMITS` in `app/lib/plan-config.ts`
+2. Update `TIER_ORDER` for progression UI
+3. Add pricing to `createSubscription()` call
+4. Update plan comparison table UI
+
+**To extend plan limits:**
+Edit `PLAN_LIMITS` in `app/lib/plan-config.ts` — all services respect this config.
 
 ## Rules
 
@@ -128,7 +183,7 @@ Settings stored in `AgentSetting` model, managed via `app/services/agent-setting
 
 | File | Purpose |
 |---|---|
-| `shopify.app.toml` | App identity, scopes (`write_products`), webhooks, API version |
+| `shopify.app.toml` | App identity, scopes (`write_products`, `read_products`), webhooks (app_subscriptions/update, app_uninstalled, app_scopes_update), API version (April26) |
 | `shopify.web.toml` | Dev/predev commands (prisma generate + db push + react-router dev) |
 | `.graphqlrc.ts` | GraphQL codegen — Admin API, auto-discovers extension schemas |
 | `vite.config.ts` | HMR on port 64999, optimizes app-bridge-react, port from `$PORT` or 3000 |
