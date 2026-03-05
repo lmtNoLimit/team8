@@ -1,5 +1,9 @@
 import prisma from "../db.server";
 import { listAgents } from "../agents/agent-registry.server";
+import {
+  type PlanLimits,
+  PlanLimitError,
+} from "../lib/plan-config";
 
 export type TrustLevel = "advisor" | "assistant" | "autopilot";
 
@@ -8,7 +12,6 @@ export async function getAgentSettings(shop: string) {
   const existing = await prisma.agentSetting.findMany({ where: { shop } });
   const settingsMap = new Map(existing.map((s) => [s.agentId, s]));
 
-  // Return settings for all registered agents, creating defaults for missing ones
   return agents.map((agent) => {
     const setting = settingsMap.get(agent.agentId);
     return {
@@ -25,7 +28,14 @@ export async function updateAgentTrustLevel(
   shop: string,
   agentId: string,
   trustLevel: TrustLevel,
+  planLimits?: PlanLimits,
 ) {
+  if (planLimits && !planLimits.allowedTrustLevels.includes(trustLevel)) {
+    throw new PlanLimitError(
+      `${trustLevel} mode requires ${trustLevel === "autopilot" ? "Pro" : "Starter"} plan or higher.`,
+    );
+  }
+
   return prisma.agentSetting.upsert({
     where: { shop_agentId: { shop, agentId } },
     update: { trustLevel },
@@ -47,7 +57,18 @@ export async function toggleAgentEnabled(
   shop: string,
   agentId: string,
   enabled: boolean,
+  planLimits?: PlanLimits,
 ) {
+  if (enabled && planLimits) {
+    const currentlyEnabled = await getEnabledAgentIds(shop);
+    const otherEnabled = currentlyEnabled.filter((id) => id !== agentId);
+    if (otherEnabled.length >= planLimits.maxAgents) {
+      throw new PlanLimitError(
+        `Your plan allows ${planLimits.maxAgents} agents. Upgrade to enable more.`,
+      );
+    }
+  }
+
   return prisma.agentSetting.upsert({
     where: { shop_agentId: { shop, agentId } },
     update: { enabled },
