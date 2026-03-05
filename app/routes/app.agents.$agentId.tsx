@@ -3,6 +3,7 @@ import { useLoaderData, useFetcher, data } from "react-router";
 import { authenticate } from "../shopify.server";
 import { getFindings } from "../services/finding-storage.server";
 import { getAgent } from "../agents/agent-registry.server";
+import { getAgentTrustLevel } from "../services/agent-settings.server";
 import { FindingCard } from "../components/finding-card";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -18,7 +19,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     throw data({ error: `Agent "${agentId}" not found` }, { status: 404 });
   }
 
-  const findings = await getFindings(session.shop, { agentId });
+  const [findings, trustLevel] = await Promise.all([
+    getFindings(session.shop, { agentId }),
+    getAgentTrustLevel(session.shop, agentId),
+  ]);
 
   return {
     agent: {
@@ -27,11 +31,12 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       description: agent.description,
     },
     findings,
+    trustLevel,
   };
 };
 
 export default function AgentDetailPage() {
-  const { agent, findings } = useLoaderData<typeof loader>();
+  const { agent, findings, trustLevel } = useLoaderData<typeof loader>();
   const runFetcher = useFetcher();
   const isRunning = runFetcher.state !== "idle";
 
@@ -71,7 +76,7 @@ export default function AgentDetailPage() {
             <s-section heading={`Needs Decision (${actionNeeded.length})`}>
               <s-stack direction="block" gap="base">
                 {actionNeeded.map((f) => (
-                  <FindingCard key={f.id} finding={f} />
+                  <FindingCard key={f.id} finding={f} trustLevel={trustLevel} />
                 ))}
               </s-stack>
             </s-section>
@@ -80,7 +85,7 @@ export default function AgentDetailPage() {
             <s-section heading={`Handled (${done.length})`}>
               <s-stack direction="block" gap="base">
                 {done.map((f) => (
-                  <FindingCard key={f.id} finding={f} />
+                  <FindingCard key={f.id} finding={f} trustLevel={trustLevel} />
                 ))}
               </s-stack>
             </s-section>
@@ -89,7 +94,7 @@ export default function AgentDetailPage() {
             <s-section heading={`Insights (${insights.length})`}>
               <s-stack direction="block" gap="base">
                 {insights.map((f) => (
-                  <FindingCard key={f.id} finding={f} />
+                  <FindingCard key={f.id} finding={f} trustLevel={trustLevel} />
                 ))}
               </s-stack>
             </s-section>

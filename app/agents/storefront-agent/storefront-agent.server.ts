@@ -12,7 +12,7 @@ interface ProductData {
   status: string;
   descriptionHtml: string;
   heroImageUrl: string | null;
-  images: { url: string; altText: string | null }[];
+  images: { url: string; altText: string | null; mediaId: string }[];
 }
 
 interface ClaudeCROAnalysis {
@@ -21,6 +21,7 @@ interface ClaudeCROAnalysis {
     priority: number;
     title: string;
     description: string;
+    recommendation: string;
     metadata: Record<string, unknown>;
   }[];
 }
@@ -39,6 +40,8 @@ const PRODUCTS_QUERY = `
         }
         media(first: 10) {
           nodes {
+            id
+            mediaContentType
             preview { image { url altText } }
           }
         }
@@ -93,7 +96,7 @@ export const storefrontAgent: Agent = {
         type: f.type as AgentFindingInput["type"],
         priority: Math.max(1, Math.min(5, f.priority)) as AgentFindingInput["priority"],
         title: f.title.slice(0, 80),
-        description: f.description.slice(0, 300),
+        description: `${f.description.slice(0, 200)}${f.recommendation ? `\n\nRecommendation: ${f.recommendation.slice(0, 200)}` : ""}`,
         metadata: f.metadata,
         deduplicationKey: `storefront:cro-${f.title.slice(0, 30).replace(/\s+/g, "-").toLowerCase()}`,
       }));
@@ -165,9 +168,10 @@ async function fetchProducts(admin: AdminClient): Promise<ProductData[]> {
         return {
           url: mImage.url as string,
           altText: (mImage.altText as string | null) ?? null,
+          mediaId: m.id as string,
         };
       })
-      .filter(Boolean) as { url: string; altText: string | null }[];
+      .filter(Boolean) as { url: string; altText: string | null; mediaId: string }[];
 
     return {
       id: node.id as string,
@@ -181,6 +185,10 @@ async function fetchProducts(admin: AdminClient): Promise<ProductData[]> {
   });
 }
 
+function adminProductUrl(gid: string): string {
+  return `shopify:admin/products/${gid.split("/").pop()}`;
+}
+
 function runMechanicalChecks(products: ProductData[]): AgentFindingInput[] {
   const findings: AgentFindingInput[] = [];
 
@@ -189,27 +197,39 @@ function runMechanicalChecks(products: ProductData[]): AgentFindingInput[] {
       ? product.title.slice(0, 37) + "..."
       : product.title;
 
-    // Check: Missing hero image
+    // Check: Missing hero image (manual fix only — can't auto-upload)
     if (!product.heroImageUrl) {
       findings.push({
         type: "action_needed",
         priority: 1,
         title: `'${truncTitle}' has no hero image`,
-        description: `Product "${product.title}" is missing a featured image. Products without images get significantly fewer clicks.`,
+        description: `Products with a featured image get up to 2x more clicks. Go to this product in Shopify Admin and upload a high-quality hero image (recommended: 1024x1024px, white background).`,
+        action: JSON.stringify({
+          fixType: "manual_upload_image",
+          productId: product.id,
+          adminUrl: adminProductUrl(product.id),
+        }),
         metadata: { handle: product.handle, productId: product.id },
         deduplicationKey: `storefront:missing-image-${product.handle}`,
         externalId: product.id,
       });
     }
 
-    // Check: Missing alt text on any image
+    // Check: Missing alt text on any image (auto-fixable)
     const imagesWithoutAlt = product.images.filter((img) => !img.altText);
     if (imagesWithoutAlt.length > 0) {
       findings.push({
         type: "action_needed",
         priority: 3,
         title: `'${truncTitle}' has ${imagesWithoutAlt.length} images missing alt text`,
-        description: `${imagesWithoutAlt.length} of ${product.images.length} images lack alt text. This hurts SEO and accessibility.`,
+        description: `${imagesWithoutAlt.length} of ${product.images.length} images lack alt text. This hurts SEO ranking and accessibility (screen readers). Click "Apply Fix" to auto-generate descriptive alt text with AI.`,
+        action: JSON.stringify({
+          fixType: "generate_alt_text",
+          productId: product.id,
+          productTitle: product.title,
+          adminUrl: adminProductUrl(product.id),
+          images: imagesWithoutAlt.map((img) => ({ mediaId: img.mediaId, url: img.url })),
+        }),
         metadata: {
           handle: product.handle,
           productId: product.id,
@@ -221,14 +241,22 @@ function runMechanicalChecks(products: ProductData[]): AgentFindingInput[] {
       });
     }
 
-    // Check: Thin description
+    // Check: Thin description (auto-fixable)
     const plainText = product.descriptionHtml.replace(/<[^>]*>/g, "").trim();
     if (plainText.length < MIN_DESCRIPTION_LENGTH) {
       findings.push({
         type: "action_needed",
         priority: 2,
         title: `'${truncTitle}' has a thin description (${plainText.length} chars)`,
-        description: `Product description is only ${plainText.length} characters. Aim for at least ${MIN_DESCRIPTION_LENGTH} characters to improve SEO and conversions.`,
+        description: `Only ${plainText.length} chars — Google recommends 150+ for SEO. Short descriptions reduce buyer confidence and search visibility. Click "Apply Fix" to generate a rich, SEO-optimized description with AI.`,
+        action: JSON.stringify({
+          fixType: "improve_description",
+          productId: product.id,
+          productTitle: product.title,
+          currentDescription: plainText,
+          handle: product.handle,
+          adminUrl: adminProductUrl(product.id),
+        }),
         metadata: {
           handle: product.handle,
           productId: product.id,
@@ -251,7 +279,7 @@ function buildCROPrompt(products: ProductData[]): string {
     })
     .join("\n");
 
-  return `Analyze this product catalog for CRO improvements. Return 2-3 specific findings as JSON.
+  return `Analyze this product catalog for CRO improvements. Return 3-5 specific findings as JSON.
 
 PRODUCT DATA:
 ${summaries}
@@ -263,18 +291,20 @@ Return JSON in this exact format:
       "type": "action_needed" | "insight" | "done",
       "priority": 1-5,
       "title": "short headline under 80 chars",
-      "description": "detailed explanation under 300 chars with specific product names",
+      "description": "what the problem is, with specific product names and numbers",
+      "recommendation": "exact step-by-step action the merchant should take to fix this",
       "metadata": { "products": ["handle1"], "theme": "..." }
     }
   ]
 }
 
 Rules:
-- "action_needed": concrete issues hurting conversions (priority 1-2)
-- "insight": patterns or opportunities to explore (priority 2-3)
-- "done": things that look good (priority 4-5)
-- Be specific: name products, cite numbers
-- Focus on what the merchant can change today`;
+- "action_needed": concrete issues hurting conversions (priority 1-2). Always include a specific fix in recommendation.
+- "insight": patterns or opportunities (priority 2-3). Include specific suggestions in recommendation.
+- "done": things that look good (priority 4-5). Explain why it's good in recommendation.
+- Be specific: name products, cite numbers, give exact recommendations
+- Every finding MUST have a concrete "recommendation" with actionable steps
+- Focus on: product titles (SEO keywords), description quality, image coverage, pricing presentation, collection organization`;
 }
 
 function calculateHealthScore(

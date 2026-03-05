@@ -4,15 +4,22 @@ import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { getFindings } from "../services/finding-storage.server";
 import { listAgents } from "../agents/agent-registry.server";
+import { getAgentSettings } from "../services/agent-settings.server";
 import { FindingsSection } from "../components/findings-section";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
 
-  const [findings, agents] = await Promise.all([
+  const [findings, agents, agentSettings] = await Promise.all([
     getFindings(session.shop),
     Promise.resolve(listAgents()),
+    getAgentSettings(session.shop),
   ]);
+
+  const trustLevels: Record<string, string> = {};
+  agentSettings.forEach((s) => {
+    trustLevels[s.agentId] = s.trustLevel;
+  });
 
   const grouped = {
     done: findings.filter((f) => f.type === "done"),
@@ -20,11 +27,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     insight: findings.filter((f) => f.type === "insight"),
   };
 
-  return { grouped, agentCount: agents.length };
+  return { grouped, agentCount: agents.length, trustLevels };
 };
 
 export default function SecretaryDashboard() {
-  const { grouped, agentCount } = useLoaderData<typeof loader>();
+  const { grouped, agentCount, trustLevels } = useLoaderData<typeof loader>();
   const runAllFetcher = useFetcher();
   const seedFetcher = useFetcher();
   const isRunningAll = runAllFetcher.state !== "idle";
@@ -67,18 +74,21 @@ export default function SecretaryDashboard() {
         heading="Needs Your Decision"
         findings={grouped.action_needed}
         emptyMessage="Nothing needs your attention right now."
+        trustLevels={trustLevels}
       />
 
       <FindingsSection
         heading="Handled Overnight"
         findings={grouped.done}
         emptyMessage="No automated actions taken yet."
+        trustLevels={trustLevels}
       />
 
       <FindingsSection
         heading="Insights"
         findings={grouped.insight}
         emptyMessage="No insights discovered yet."
+        trustLevels={trustLevels}
       />
 
       <s-section slot="aside" heading="My Team">

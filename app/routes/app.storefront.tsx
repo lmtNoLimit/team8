@@ -1,7 +1,10 @@
-import type { LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useFetcher } from "react-router";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import { useLoaderData, useFetcher, data } from "react-router";
 import { authenticate } from "../shopify.server";
 import { getFindings } from "../services/finding-storage.server";
+import { getAgentTrustLevel } from "../services/agent-settings.server";
+import { getAgent } from "../agents/agent-registry.server";
+import { executeAgent } from "../services/agent-executor.server";
 import { FindingsSection } from "../components/findings-section";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -17,7 +20,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const contentIssues = (meta?.contentIssues as number) ?? 0;
   const totalProducts = (meta?.totalProducts as number) ?? 0;
 
-  return { findings, score, imageIssues, contentIssues, totalProducts };
+  const trustLevel = await getAgentTrustLevel(session.shop, "storefront");
+
+  return { findings, score, imageIssues, contentIssues, totalProducts, trustLevel };
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session, admin } = await authenticate.admin(request);
+
+  const agent = getAgent("storefront");
+  if (!agent) {
+    return data({ success: false, error: "Storefront agent not found" }, { status: 404 });
+  }
+
+  try {
+    const findings = await executeAgent(agent, session.shop, admin);
+    return data({ success: true, findingsCount: findings.length });
+  } catch (error) {
+    return data(
+      { success: false, error: (error as Error).message },
+      { status: 500 },
+    );
+  }
 };
 
 function scoreTone(
@@ -30,10 +54,13 @@ function scoreTone(
 }
 
 export default function StorefrontPage() {
-  const { findings, score, imageIssues, contentIssues, totalProducts } =
+  const { findings, score, imageIssues, contentIssues, totalProducts, trustLevel } =
     useLoaderData<typeof loader>();
   const runFetcher = useFetcher();
   const isRunning = runFetcher.state !== "idle";
+  const runResult = runFetcher.data as
+    | { success: boolean; findingsCount?: number; error?: string }
+    | undefined;
 
   const actionNeeded = findings.filter((f) => f.type === "action_needed");
   const insights = findings.filter((f) => f.type === "insight");
@@ -50,13 +77,21 @@ export default function StorefrontPage() {
         onClick={() =>
           runFetcher.submit(
             {},
-            { method: "POST", action: "/app/api/agents/storefront/run" },
+            { method: "POST" },
           )
         }
         {...(isRunning ? { loading: true } : {})}
       >
-        Run Audit
+        {isRunning ? "Running..." : "Run Audit"}
       </s-button>
+
+      {runResult && !isRunning && (
+        <s-banner tone={runResult.success ? "success" : "critical"}>
+          {runResult.success
+            ? `Audit complete! Found ${runResult.findingsCount ?? 0} items.`
+            : `Audit failed: ${runResult.error ?? "Unknown error"}`}
+        </s-banner>
+      )}
 
       {score !== null ? (
         <s-section heading="Health Score">
@@ -81,18 +116,21 @@ export default function StorefrontPage() {
         heading="Action Needed"
         findings={actionNeeded}
         emptyMessage="No issues found. Your storefront looks good!"
+        trustLevel={trustLevel}
       />
 
       <FindingsSection
         heading="Insights"
         findings={insights}
         emptyMessage="No insights yet. Run an audit to get CRO recommendations."
+        trustLevel={trustLevel}
       />
 
       <FindingsSection
         heading="Completed"
         findings={done}
         emptyMessage="No completed checks yet."
+        trustLevel={trustLevel}
       />
     </s-page>
   );
