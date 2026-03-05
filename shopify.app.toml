@@ -1,6 +1,6 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "7c3a371bfea4f72c61efd72f6016cda2"
+client_id = "3f99bcbf63a18281683a59dd95f61ea9"
 name = "Mevo"
 application_url = "https://example.com"
 embedded = true
