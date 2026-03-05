@@ -122,12 +122,11 @@ function PriorityItem({
     <s-box padding="base" borderWidth="base" borderRadius="base">
       <s-stack direction="block" gap="small">
         <s-button variant="tertiary" onClick={onToggle}>
-          <s-stack direction="inline" gap="base">
+          <s-stack direction="inline" gap="small">
             <s-badge tone={index === 0 ? "critical" : index === 1 ? "warning" : "info"}>
               {index + 1}
             </s-badge>
             <s-text>{text}</s-text>
-            <s-text>{isExpanded ? "▾" : "▸"}</s-text>
           </s-stack>
         </s-button>
         {isExpanded && finding && (
@@ -223,60 +222,57 @@ export default function TodayDashboard() {
         </s-banner>
       )}
 
-      {/* Briefing Card */}
+      {/* Morning Briefing */}
       <s-section>
-        <s-box padding="large" borderWidth="base" borderRadius="base">
-          <s-stack direction="block" gap="base">
-            {/* Eyebrow */}
-            <s-text>{today} · Morning Briefing</s-text>
+        <s-stack direction="block" gap="small">
+          <s-box padding="base" borderWidth="base" borderRadius="base">
+            <s-stack direction="block" gap="small">
+              <s-text>{today} · Morning Briefing</s-text>
+              <s-text><strong>{briefing.greeting}</strong></s-text>
+              {lastCheckedStr && (
+                <s-text>Last checked {lastCheckedStr}</s-text>
+              )}
+            </s-stack>
+          </s-box>
 
-            {/* Greeting headline */}
-            <s-text><strong>{briefing.greeting}</strong></s-text>
+          {briefing.autoHandledSummary && (
+            <s-banner tone="success">{briefing.autoHandledSummary}</s-banner>
+          )}
 
-            {/* Last checked */}
-            {lastCheckedStr && (
-              <s-text>Last checked {lastCheckedStr}</s-text>
-            )}
-
-            {/* Top Priorities */}
-            {briefing.topPriorities.length > 0 && (
-              <s-stack direction="block" gap="base">
-                <s-text><strong>Top Priorities</strong></s-text>
-                {briefing.topPriorities.map((p, i) => {
-                  const finding = findingMap.get(p.findingId);
-                  return (
-                    <PriorityItem
-                      key={p.findingId || i}
-                      text={p.text}
-                      index={i}
-                      finding={finding as PriorityFinding | undefined}
-                      trustLevel={
-                        (finding ? trustMap[finding.agentId] : "advisor") as
-                          "advisor" | "assistant" | "autopilot"
-                      }
-                      isExpanded={expandedPriority === p.findingId}
-                      onToggle={() =>
-                        setExpandedPriority(
-                          expandedPriority === p.findingId ? null : p.findingId,
-                        )
-                      }
-                    />
-                  );
-                })}
-              </s-stack>
-            )}
-
-            {/* Auto-handled + Insight banners */}
-            {briefing.autoHandledSummary && (
-              <s-banner tone="success">{briefing.autoHandledSummary}</s-banner>
-            )}
-
-            {briefing.insightHighlight && (
-              <s-banner tone="info">{briefing.insightHighlight}</s-banner>
-            )}
-          </s-stack>
-        </s-box>
+          {briefing.insightHighlight && (
+            <s-banner tone="info">{briefing.insightHighlight}</s-banner>
+          )}
+        </s-stack>
       </s-section>
+
+      {/* Top Priorities */}
+      {briefing.topPriorities.length > 0 && (
+        <s-section heading={`Top Priorities (${briefing.topPriorities.length})`}>
+          <s-stack direction="block" gap="base">
+            {briefing.topPriorities.map((p, i) => {
+              const finding = findingMap.get(p.findingId);
+              return (
+                <PriorityItem
+                  key={p.findingId || i}
+                  text={p.text}
+                  index={i}
+                  finding={finding as PriorityFinding | undefined}
+                  trustLevel={
+                    (finding ? trustMap[finding.agentId] : "advisor") as
+                      "advisor" | "assistant" | "autopilot"
+                  }
+                  isExpanded={expandedPriority === p.findingId}
+                  onToggle={() =>
+                    setExpandedPriority(
+                      expandedPriority === p.findingId ? null : p.findingId,
+                    )
+                  }
+                />
+              );
+            })}
+          </s-stack>
+        </s-section>
+      )}
 
       {/* Needs Your Decision — exclude findings already shown in Top Priorities */}
       <FindingsSection
