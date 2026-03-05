@@ -147,32 +147,38 @@ export default function UpgradePage() {
         />
 
         <s-section heading="Current Usage">
-          <s-stack direction="inline" gap="base">
-            <s-box padding="base" borderWidth="base" borderRadius="base">
-              <s-stack direction="block" gap="small">
-                <s-text>
-                  <strong>Runs this week</strong>
-                </s-text>
-                <s-text>{runsDisplay}</s-text>
-              </s-stack>
-            </s-box>
-            <s-box padding="base" borderWidth="base" borderRadius="base">
-              <s-stack direction="block" gap="small">
-                <s-text>
-                  <strong>Products</strong>
-                </s-text>
-                <s-text>{productsDisplay}</s-text>
-              </s-stack>
-            </s-box>
-            <s-box padding="base" borderWidth="base" borderRadius="base">
-              <s-stack direction="block" gap="small">
-                <s-text>
-                  <strong>Agents</strong>
-                </s-text>
-                <s-text>{usage.limits.maxAgents} available</s-text>
-              </s-stack>
-            </s-box>
-          </s-stack>
+          <s-grid gridTemplateColumns="repeat(3, 1fr)" gap="base">
+            <s-grid-item>
+              <s-box padding="base" borderWidth="base" borderRadius="base">
+                <s-stack direction="block" gap="small">
+                  <s-text>
+                    <strong>Runs this week</strong>
+                  </s-text>
+                  <s-text>{runsDisplay}</s-text>
+                </s-stack>
+              </s-box>
+            </s-grid-item>
+            <s-grid-item>
+              <s-box padding="base" borderWidth="base" borderRadius="base">
+                <s-stack direction="block" gap="small">
+                  <s-text>
+                    <strong>Products</strong>
+                  </s-text>
+                  <s-text>{productsDisplay}</s-text>
+                </s-stack>
+              </s-box>
+            </s-grid-item>
+            <s-grid-item>
+              <s-box padding="base" borderWidth="base" borderRadius="base">
+                <s-stack direction="block" gap="small">
+                  <s-text>
+                    <strong>Agents</strong>
+                  </s-text>
+                  <s-text>{usage.limits.maxAgents} available</s-text>
+                </s-stack>
+              </s-box>
+            </s-grid-item>
+          </s-grid>
         </s-section>
       </s-stack>
     </s-page>
