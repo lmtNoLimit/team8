@@ -253,9 +253,8 @@ function JudgeMeSetupBanner() {
             <s-text-field
               label="Judge.me API Token"
               name="apiToken"
-              type="password"
               placeholder="Paste your Judge.me private API token here"
-              autoComplete="off"
+              autocomplete="off"
             />
             <s-button
               variant="primary"
