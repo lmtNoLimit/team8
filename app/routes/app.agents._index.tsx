@@ -9,6 +9,8 @@ import { authenticate } from "../shopify.server";
 import { getAgentSettings } from "../services/agent-settings.server";
 import { getFindings } from "../services/finding-storage.server";
 import { getActivityLog } from "../services/activity-log.server";
+import { getShopPlan } from "../services/billing.server";
+import { getPlanLimits, type PlanTier } from "../lib/plan-config";
 
 const AGENT_LABELS: Record<string, string> = {
   aeo: "AEO",
@@ -21,11 +23,13 @@ const AGENT_LABELS: Record<string, string> = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const [agentSettingsList, findings, activityLog] = await Promise.all([
+  const [agentSettingsList, findings, activityLog, plan] = await Promise.all([
     getAgentSettings(session.shop),
     getFindings(session.shop),
     getActivityLog(session.shop, { limit: 50 }),
+    getShopPlan(session.shop),
   ]);
+  const planLimits = getPlanLimits(plan.tier as PlanTier);
 
   const findingsByAgent = new Map<
     string,
@@ -56,16 +60,30 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     };
   });
 
-  return { agents: agentsWithStats, activityLog };
+  return {
+    agents: agentsWithStats,
+    activityLog,
+    currentTier: plan.tier,
+    planLimits,
+  };
 };
 
 export default function AgentsListPage() {
-  const { agents, activityLog } = useLoaderData<typeof loader>();
+  const { agents, activityLog, planLimits } =
+    useLoaderData<typeof loader>();
   const runAllFetcher = useFetcher();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const isRunningAll = runAllFetcher.state !== "idle";
   const activeTab = searchParams.get("tab") ?? "agents";
+
+  const runResult = runAllFetcher.data as {
+    success?: boolean;
+    error?: string;
+    upgradeUrl?: string;
+  } | null;
+
+  const enabledCount = agents.filter((a) => a.enabled).length;
 
   return (
     <s-page heading="My Team">
@@ -83,10 +101,22 @@ export default function AgentsListPage() {
         Run All Agents
       </s-button>
 
+      {runResult && !runResult.success && (
+        <s-banner tone="warning">
+          {runResult.error}{" "}
+          <s-link href={runResult.upgradeUrl || "/app/upgrade"}>
+            View upgrade options
+          </s-link>
+        </s-banner>
+      )}
+
       <s-banner tone="info">
         Your AI Secretary manages {agents.length} specialist agents. Each agent
         monitors a specific area of your store and reports findings to your
         daily briefing.
+        {enabledCount > planLimits.maxAgents && (
+          <> Some agents exceed your plan limit.</>
+        )}
       </s-banner>
 
       <s-section>
@@ -113,6 +143,10 @@ export default function AgentsListPage() {
                   key={agent.agentId}
                   agent={agent}
                   onNavigate={() => navigate(`/app/agents/${agent.agentId}`)}
+                  planLimited={
+                    !agent.enabled &&
+                    enabledCount >= planLimits.maxAgents
+                  }
                 />
               ))}
             </s-stack>
@@ -176,6 +210,7 @@ export default function AgentsListPage() {
 function AgentCard({
   agent,
   onNavigate,
+  planLimited,
 }: {
   agent: {
     agentId: string;
@@ -187,6 +222,7 @@ function AgentCard({
     lastRun: string | null;
   };
   onNavigate: () => void;
+  planLimited: boolean;
 }) {
   const fetcher = useFetcher();
   const isRunning = fetcher.state !== "idle";
@@ -199,6 +235,7 @@ function AgentCard({
             <strong>{agent.displayName}</strong>
           </s-text>
           {!agent.enabled && <s-badge tone="critical">Disabled</s-badge>}
+          {planLimited && <s-badge tone="warning">Plan Limit</s-badge>}
         </s-stack>
         <s-paragraph>{agent.description}</s-paragraph>
         <s-stack direction="inline" gap="small">
