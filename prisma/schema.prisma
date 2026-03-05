@@ -30,3 +30,32 @@ model Session {
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
+
+model AgentFinding {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  agentId          String
+  shop             String
+
+  type             String   // "done", "action_needed", "insight"
+  priority         Int      // 1-5 (1 = most critical)
+
+  title            String
+  description      String
+  action           String?
+
+  metadata         Json?
+
+  status           String   @default("pending") // "pending", "applied", "dismissed"
+
+  deduplicationKey String?
+  externalId       String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([shop, agentId, deduplicationKey])
+  @@index([shop, agentId])
+  @@index([shop, type, status])
+  @@index([createdAt])
+}
