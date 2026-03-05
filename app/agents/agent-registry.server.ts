@@ -6,6 +6,7 @@ import { schemaAgent } from "./schema-agent/schema-agent.server";
 import { inventoryAgent } from "./inventory-agent/inventory-agent.server";
 import { storefrontAgent } from "./storefront-agent/storefront-agent.server";
 import { reviewAgent } from "./review-agent/review-agent.server";
+import { trendAgent } from "./trend-agent/trend-agent.server";
 
 /**
  * Central agent registry. All agents registered via explicit imports.
@@ -22,6 +23,7 @@ const agentList: Agent[] = [
   inventoryAgent,
   storefrontAgent,
   reviewAgent,
+  trendAgent,
 ];
 
 const agentMap = new Map<string, Agent>(

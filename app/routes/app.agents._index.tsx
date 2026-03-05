@@ -19,6 +19,7 @@ const AGENT_LABELS: Record<string, string> = {
   inventory: "Inventory",
   storefront: "Storefront",
   review: "Review",
+  trend: "Trend",
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
