@@ -5,7 +5,7 @@ import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { getFindings } from "../services/finding-storage.server";
 import { listAgents } from "../agents/agent-registry.server";
-import { getAgentSettings } from "../services/agent-settings.server";
+import { getAgentSettings, getEnabledAgentIds } from "../services/agent-settings.server";
 import { getStoreProfile } from "../services/store-profile.server";
 import { generateBriefing } from "../services/briefing.server";
 import { FindingsSection } from "../components/findings-section";
@@ -14,30 +14,35 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
 
-  const [pendingFindings, handledToday, agents, agentSettings, storeProfile] =
+  const [pendingFindings, handledToday, agents, agentSettings, storeProfile, enabledIds] =
     await Promise.all([
       getFindings(shop, { status: "pending" }),
       getFindings(shop, { status: "applied" }),
       Promise.resolve(listAgents()),
       getAgentSettings(shop),
       getStoreProfile(shop),
+      getEnabledAgentIds(shop),
     ]);
 
   const trustMap = Object.fromEntries(
     agentSettings.map((s) => [s.agentId, s.trustLevel]),
   );
 
+  // Filter to only enabled agents
+  const enabledPending = pendingFindings.filter((f) => enabledIds.includes(f.agentId));
+  const enabledHandled = handledToday.filter((f) => enabledIds.includes(f.agentId));
+
   // Group pending findings by section
-  const actionNeeded = pendingFindings.filter((f) => f.type === "action_needed");
-  const insights = pendingFindings.filter((f) => f.type === "insight");
-  const handledOvernight = pendingFindings.filter((f) => f.type === "done");
+  const actionNeeded = enabledPending.filter((f) => f.type === "action_needed");
+  const insights = enabledPending.filter((f) => f.type === "insight");
+  const handledOvernight = enabledPending.filter((f) => f.type === "done");
 
   // Generate AI briefing
   const name = storeProfile?.storeName || undefined;
-  const rawBriefing = await generateBriefing(pendingFindings, name);
+  const rawBriefing = await generateBriefing(enabledPending, name);
 
   // Validate findingIds — AI may return IDs that don't match actual findings
-  const validFindingIds = new Set(pendingFindings.map((f) => f.id));
+  const validFindingIds = new Set(enabledPending.map((f) => f.id));
   const briefing = {
     ...rawBriefing,
     topPriorities: rawBriefing.topPriorities.filter(
@@ -46,8 +51,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 
   // Progress: actionable items only (action_needed + insight)
-  const actionableTotal = actionNeeded.length + insights.length + handledToday.length;
-  const handledCount = handledToday.length;
+  const actionableTotal = actionNeeded.length + insights.length + enabledHandled.length;
+  const handledCount = enabledHandled.length;
 
   // Date for eyebrow
   const today = new Date().toLocaleDateString("en-US", {
@@ -62,9 +67,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     handledOvernight,
     insights,
     trustMap,
-    agentCount: agents.length,
+    agentCount: enabledIds.length,
     progress: { handled: handledCount, total: actionableTotal },
-    lastChecked: [...pendingFindings, ...handledToday]
+    lastChecked: [...enabledPending, ...enabledHandled]
       .map((f) => f.updatedAt)
       .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]?.toISOString() ?? null,
     today,

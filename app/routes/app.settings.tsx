@@ -5,8 +5,10 @@ import { getStoreProfile, updateStoreProfile } from "../services/store-profile.s
 import {
   getAgentSettings,
   updateAgentTrustLevel,
+  toggleAgentEnabled,
   type TrustLevel,
 } from "../services/agent-settings.server";
+import { getAgent } from "../agents/agent-registry.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -35,8 +37,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (actionType === "update_trust_level") {
     const agentId = formData.get("agentId") as string;
-    const trustLevel = formData.get("trustLevel") as TrustLevel;
-    await updateAgentTrustLevel(session.shop, agentId, trustLevel);
+    const trustLevel = formData.get("trustLevel") as string;
+    if (!agentId || !getAgent(agentId)) {
+      return data({ success: false, error: "Invalid agentId" }, { status: 400 });
+    }
+    if (!VALID_TRUST_LEVELS.has(trustLevel)) {
+      return data({ success: false, error: "Invalid trust level" }, { status: 400 });
+    }
+    await updateAgentTrustLevel(session.shop, agentId, trustLevel as TrustLevel);
     return data({ success: true, action: "trust_level", agentId });
   }
 
@@ -48,8 +56,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return data({ success: true, action: "briefing" });
   }
 
+  if (actionType === "toggle_enabled") {
+    const agentId = formData.get("agentId") as string;
+    if (!agentId || !getAgent(agentId)) {
+      return data({ success: false, error: "Invalid agentId" }, { status: 400 });
+    }
+    const enabled = formData.get("enabled") === "true";
+    await toggleAgentEnabled(session.shop, agentId, enabled);
+    return data({ success: true, action: "toggle_enabled", agentId });
+  }
+
   return data({ success: false, error: "Unknown action" }, { status: 400 });
 };
+
+const VALID_TRUST_LEVELS = new Set<string>(["advisor", "assistant", "autopilot"]);
 
 const TRUST_LEVELS: { value: TrustLevel; label: string; description: string }[] = [
   {
@@ -126,11 +146,10 @@ export default function SettingsPage() {
         </profileFetcher.Form>
       </s-section>
 
-      <s-section heading="Agent Trust Levels">
+      <s-section heading="Agent Configuration">
         <s-paragraph>
-          Control how much autonomy each agent has. Advisor mode is read-only.
-          Assistant lets you apply with one click. Autopilot handles things
-          automatically.
+          Enable or disable agents and control their autonomy level. Disabled
+          agents won&apos;t run or appear in your briefing.
         </s-paragraph>
         <s-stack direction="block" gap="base">
           {agentSettings.map((agent) => (
@@ -252,49 +271,70 @@ function AgentTrustControl({
     displayName: string;
     description: string;
     trustLevel: TrustLevel;
+    enabled: boolean;
   };
 }) {
   const fetcher = useFetcher();
-  const isSaving = fetcher.state !== "idle";
+  const toggleFetcher = useFetcher();
+  const isSaving = fetcher.state !== "idle" || toggleFetcher.state !== "idle";
+
+  const optimisticEnabled =
+    toggleFetcher.formData
+      ? toggleFetcher.formData.get("enabled") === "true"
+      : agent.enabled;
+
+  const fetcherData = fetcher.data as { agentId?: string } | null;
+  const toggleData = toggleFetcher.data as { agentId?: string } | null;
   const saved =
-    fetcher.data != null &&
-    (fetcher.data as { agentId?: string }).agentId === agent.agentId;
+    (fetcherData?.agentId === agent.agentId) ||
+    (toggleData?.agentId === agent.agentId);
 
   return (
     <s-box padding="base" borderWidth="base" borderRadius="base">
       <s-stack direction="block" gap="small">
         <s-stack direction="inline" gap="small">
-          <s-text>
-            <strong>{agent.displayName}</strong>
-          </s-text>
+          <s-checkbox
+            label={agent.displayName}
+            {...(optimisticEnabled ? { checked: true } : {})}
+            onChange={() => {
+              const formData = new FormData();
+              formData.set("_action", "toggle_enabled");
+              formData.set("agentId", agent.agentId);
+              formData.set("enabled", String(!optimisticEnabled));
+              toggleFetcher.submit(formData, { method: "post" });
+            }}
+          />
+          {!optimisticEnabled && <s-badge tone="critical">Disabled</s-badge>}
           {saved && <s-badge tone="success">Updated</s-badge>}
           {isSaving && <s-badge>Saving...</s-badge>}
         </s-stack>
         <s-paragraph>{agent.description}</s-paragraph>
-        <s-choice-list
-          name={`trust-${agent.agentId}`}
-          onChange={(e: Event) => {
-            const target = e.currentTarget as HTMLElement & { values: string[] };
-            const newLevel = target.values[0];
-            if (newLevel && newLevel !== agent.trustLevel) {
-              const formData = new FormData();
-              formData.set("_action", "update_trust_level");
-              formData.set("agentId", agent.agentId);
-              formData.set("trustLevel", newLevel);
-              fetcher.submit(formData, { method: "post" });
-            }
-          }}
-        >
-          {TRUST_LEVELS.map((level) => (
-            <s-choice
-              key={level.value}
-              value={level.value}
-              {...(level.value === agent.trustLevel ? { selected: true } : {})}
-            >
-              {level.label} — {level.description}
-            </s-choice>
-          ))}
-        </s-choice-list>
+        {optimisticEnabled && (
+          <s-choice-list
+            name={`trust-${agent.agentId}`}
+            onChange={(e: Event) => {
+              const target = e.currentTarget as HTMLElement & { values: string[] };
+              const newLevel = target.values[0];
+              if (newLevel && newLevel !== agent.trustLevel) {
+                const formData = new FormData();
+                formData.set("_action", "update_trust_level");
+                formData.set("agentId", agent.agentId);
+                formData.set("trustLevel", newLevel);
+                fetcher.submit(formData, { method: "post" });
+              }
+            }}
+          >
+            {TRUST_LEVELS.map((level) => (
+              <s-choice
+                key={level.value}
+                value={level.value}
+                {...(level.value === agent.trustLevel ? { selected: true } : {})}
+              >
+                {level.label} — {level.description}
+              </s-choice>
+            ))}
+          </s-choice-list>
+        )}
       </s-stack>
     </s-box>
   );

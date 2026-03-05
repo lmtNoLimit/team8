@@ -42,3 +42,37 @@ export async function getAgentTrustLevel(
   });
   return (setting?.trustLevel as TrustLevel) ?? "advisor";
 }
+
+export async function toggleAgentEnabled(
+  shop: string,
+  agentId: string,
+  enabled: boolean,
+) {
+  return prisma.agentSetting.upsert({
+    where: { shop_agentId: { shop, agentId } },
+    update: { enabled },
+    create: { shop, agentId, enabled },
+  });
+}
+
+export async function getEnabledAgentIds(shop: string): Promise<string[]> {
+  const agents = listAgents();
+  const settings = await prisma.agentSetting.findMany({
+    where: { shop },
+    select: { agentId: true, enabled: true },
+  });
+  const settingsMap = new Map(settings.map((s) => [s.agentId, s.enabled]));
+  return agents
+    .map((a) => a.agentId)
+    .filter((id) => settingsMap.get(id) ?? true);
+}
+
+export async function isAgentEnabled(
+  shop: string,
+  agentId: string,
+): Promise<boolean> {
+  const setting = await prisma.agentSetting.findUnique({
+    where: { shop_agentId: { shop, agentId } },
+  });
+  return setting?.enabled ?? true;
+}

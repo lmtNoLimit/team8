@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import { getFindings } from "../services/finding-storage.server";
 import { getAgent } from "../agents/agent-registry.server";
+import { isAgentEnabled } from "../services/agent-settings.server";
 import { FindingCard } from "../components/finding-card";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -17,6 +18,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const agent = getAgent(agentId);
   if (!agent) {
     throw data({ error: `Agent "${agentId}" not found` }, { status: 404 });
+  }
+
+  const enabled = await isAgentEnabled(session.shop, agentId);
+  if (!enabled) {
+    throw data(
+      { error: `Agent "${agentId}" is disabled for this shop` },
+      { status: 403 },
+    );
   }
 
   const findings = await getFindings(session.shop, { agentId });
@@ -70,7 +79,7 @@ export default function AgentDetailPage() {
       {findings.length === 0 ? (
         <s-section heading="No Findings">
           <s-paragraph>
-            This agent hasn't produced any findings yet. Click "Run Now" to
+            This agent hasn&apos;t produced any findings yet. Click &quot;Run Now&quot; to
             start.
           </s-paragraph>
         </s-section>
