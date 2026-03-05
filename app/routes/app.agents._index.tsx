@@ -6,7 +6,7 @@ import {
   useSearchParams,
 } from "react-router";
 import { authenticate } from "../shopify.server";
-import { listAgents } from "../agents/agent-registry.server";
+import { getAgentSettings } from "../services/agent-settings.server";
 import { getFindings } from "../services/finding-storage.server";
 import { getActivityLog } from "../services/activity-log.server";
 
@@ -21,8 +21,8 @@ const AGENT_LABELS: Record<string, string> = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const [agents, findings, activityLog] = await Promise.all([
-    Promise.resolve(listAgents()),
+  const [agentSettingsList, findings, activityLog] = await Promise.all([
+    getAgentSettings(session.shop),
     getFindings(session.shop),
     getActivityLog(session.shop, { limit: 50 }),
   ]);
@@ -46,7 +46,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     findingsByAgent.set(f.agentId, existing);
   }
 
-  const agentsWithStats = agents.map((a) => {
+  const agentsWithStats = agentSettingsList.map((a) => {
     const stats = findingsByAgent.get(a.agentId);
     return {
       ...a,
@@ -181,6 +181,7 @@ function AgentCard({
     agentId: string;
     displayName: string;
     description: string;
+    enabled: boolean;
     totalFindings: number;
     actionNeeded: number;
     lastRun: string | null;
@@ -193,9 +194,12 @@ function AgentCard({
   return (
     <s-box padding="base" borderWidth="base" borderRadius="base">
       <s-stack direction="block" gap="small">
-        <s-text>
-          <strong>{agent.displayName}</strong>
-        </s-text>
+        <s-stack direction="inline" gap="small">
+          <s-text>
+            <strong>{agent.displayName}</strong>
+          </s-text>
+          {!agent.enabled && <s-badge tone="critical">Disabled</s-badge>}
+        </s-stack>
         <s-paragraph>{agent.description}</s-paragraph>
         <s-stack direction="inline" gap="small">
           <s-badge>{agent.totalFindings} findings</s-badge>
@@ -223,10 +227,16 @@ function AgentCard({
               )
             }
             {...(isRunning ? { loading: true } : {})}
+            {...(!agent.enabled ? { disabled: true } : {})}
           >
             Run
           </s-button>
-          <s-button onClick={onNavigate}>View Details</s-button>
+          <s-button
+            onClick={onNavigate}
+            {...(!agent.enabled ? { disabled: true } : {})}
+          >
+            View Details
+          </s-button>
         </s-stack>
       </s-stack>
     </s-box>

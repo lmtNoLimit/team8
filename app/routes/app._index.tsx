@@ -3,24 +3,28 @@ import { useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { getFindings } from "../services/finding-storage.server";
-import { listAgents } from "../agents/agent-registry.server";
+import { getEnabledAgentIds } from "../services/agent-settings.server";
 import { FindingsSection } from "../components/findings-section";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
 
-  const [findings, agents] = await Promise.all([
+  const [findings, enabledIds] = await Promise.all([
     getFindings(session.shop),
-    Promise.resolve(listAgents()),
+    getEnabledAgentIds(session.shop),
   ]);
 
+  const enabledFindings = findings.filter((f) =>
+    enabledIds.includes(f.agentId),
+  );
+
   const grouped = {
-    done: findings.filter((f) => f.type === "done"),
-    action_needed: findings.filter((f) => f.type === "action_needed"),
-    insight: findings.filter((f) => f.type === "insight"),
+    done: enabledFindings.filter((f) => f.type === "done"),
+    action_needed: enabledFindings.filter((f) => f.type === "action_needed"),
+    insight: enabledFindings.filter((f) => f.type === "insight"),
   };
 
-  return { grouped, agentCount: agents.length };
+  return { grouped, agentCount: enabledIds.length };
 };
 
 export default function SecretaryDashboard() {
@@ -59,7 +63,7 @@ export default function SecretaryDashboard() {
         </s-banner>
       ) : (
         <s-banner tone="success">
-          No findings yet. Click "Run All Agents" to start your briefing.
+          No findings yet. Click &quot;Run All Agents&quot; to start your briefing.
         </s-banner>
       )}
 
