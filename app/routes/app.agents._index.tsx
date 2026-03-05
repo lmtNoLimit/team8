@@ -13,12 +13,21 @@ import { getFindings } from "../services/finding-storage.server";
 import { getActivityLog } from "../services/activity-log.server";
 import { getShopPlan } from "../services/billing.server";
 import { getPlanLimits, type PlanTier } from "../lib/plan-config";
+import { listComingSoonAgents } from "../agents/agent-registry.server";
 
 const AGENT_LABELS: Record<string, string> = {
   inventory: "Inventory",
   storefront: "Storefront",
   review: "Review",
   trend: "Trend",
+  churn: "Churn Risk",
+  "revenue-detective": "Revenue",
+  "cart-recovery": "Cart Recovery",
+  "return-flow": "Returns",
+  "product-performance": "Product",
+  "rfm-segmentation": "RFM",
+  "order-risk": "Order Risk",
+  "privacy-audit": "Privacy",
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -60,16 +69,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     };
   });
 
+  const comingSoonAgents = listComingSoonAgents();
+
   return {
     agents: agentsWithStats,
     activityLog,
     currentTier: plan.tier,
     planLimits,
+    comingSoonAgents,
   };
 };
 
 export default function AgentsListPage() {
-  const { agents, activityLog, planLimits } =
+  const { agents, activityLog, planLimits, comingSoonAgents } =
     useLoaderData<typeof loader>();
   const runAllFetcher = useFetcher();
   const navigate = useNavigate();
@@ -129,9 +141,10 @@ export default function AgentsListPage() {
       )}
 
       <s-banner tone="info">
-        Your AI Secretary manages {agents.length} specialist agents. Each agent
-        monitors a specific area of your store and reports findings to your
-        daily briefing.
+        Your AI Secretary manages {agents.length} active agents
+        {comingSoonAgents.length > 0 && <> with {comingSoonAgents.length} more on the way</>}.
+        Each agent monitors a specific area of your store and reports findings
+        to your daily briefing.
         {enabledCount > planLimits.maxAgents && (
           <> Some agents exceed your plan limit.</>
         )}
@@ -155,7 +168,7 @@ export default function AgentsListPage() {
           </s-stack>
 
           {activeTab === "agents" ? (
-            <s-stack direction="block" gap="base">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
               {agents.map((agent) => (
                 <AgentCard
                   key={agent.agentId}
@@ -167,7 +180,11 @@ export default function AgentsListPage() {
                   }
                 />
               ))}
-            </s-stack>
+
+              {comingSoonAgents.map((agent) => (
+                <ComingSoonCard key={agent.agentId} agent={agent} />
+              ))}
+            </div>
           ) : (
             <s-stack direction="block" gap="small">
               {activityLog.length === 0 ? (
@@ -313,6 +330,26 @@ function AgentCard({
             View Details
           </s-button>
         </s-stack>
+      </s-stack>
+    </s-box>
+  );
+}
+
+function ComingSoonCard({
+  agent,
+}: {
+  agent: { agentId: string; displayName: string; description: string };
+}) {
+  return (
+    <s-box padding="base" borderWidth="base" borderRadius="base">
+      <s-stack direction="block" gap="small">
+        <s-stack direction="inline" gap="small">
+          <s-text>
+            <strong>{agent.displayName}</strong>
+          </s-text>
+          <s-badge tone="info">Coming Soon</s-badge>
+        </s-stack>
+        <s-paragraph>{agent.description}</s-paragraph>
       </s-stack>
     </s-box>
   );

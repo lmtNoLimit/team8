@@ -22,6 +22,14 @@ const AGENT_LABELS: Record<string, string> = {
   storefront: "Storefront",
   review: "Review",
   trend: "Trend",
+  churn: "Churn Risk",
+  "revenue-detective": "Revenue",
+  "cart-recovery": "Cart Recovery",
+  "return-flow": "Returns",
+  "product-performance": "Product",
+  "rfm-segmentation": "RFM",
+  "order-risk": "Order Risk",
+  "privacy-audit": "Privacy",
 };
 
 /** Parse the action JSON and return human-readable guidance + optional admin link. */
