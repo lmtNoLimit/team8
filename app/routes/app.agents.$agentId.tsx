@@ -103,7 +103,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export default function AgentDetailPage() {
-  const { agent, findings } = useLoaderData<typeof loader>();
+  const { agent, findings, syncConfig, reviewsByProduct } = useLoaderData<typeof loader>();
   const runFetcher = useFetcher();
   const isRunning = runFetcher.state !== "idle";
 
@@ -129,6 +129,49 @@ export default function AgentDetailPage() {
       </s-button>
 
       <s-banner tone="info">{agent.description}</s-banner>
+
+      {agent.agentId === "review" && (
+        !syncConfig || syncConfig.status === "disconnected"
+          ? <JudgeMeSetupBanner />
+          : <JudgeMeConnectedBanner syncConfig={syncConfig} />
+      )}
+
+      {agent.agentId === "review" && reviewsByProduct.length > 0 && (
+        <s-section heading={`Reviews by Product (${reviewsByProduct.length} products)`}>
+          <s-box>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid #e1e3e5", textAlign: "left" }}>
+                  <th style={{ padding: "12px 16px" }}>Product</th>
+                  <th style={{ padding: "12px 16px" }}>Avg Rating</th>
+                  <th style={{ padding: "12px 16px" }}>Reviews</th>
+                  <th style={{ padding: "12px 16px" }}>Latest Review</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reviewsByProduct.map((product) => (
+                  <tr key={product.productId} style={{ borderBottom: "1px solid #f1f2f3" }}>
+                    <td style={{ padding: "12px 16px" }}>
+                      <s-text><strong>{product.productTitle}</strong></s-text>
+                    </td>
+                    <td style={{ padding: "12px 16px" }}>
+                      <s-badge tone={product.avgRating >= 4 ? "success" : product.avgRating >= 3 ? "warning" : "critical"}>
+                        {"★".repeat(Math.round(product.avgRating))} {product.avgRating}/5
+                      </s-badge>
+                    </td>
+                    <td style={{ padding: "12px 16px" }}>
+                      <s-text>{product.reviewCount}</s-text>
+                    </td>
+                    <td style={{ padding: "12px 16px" }}>
+                      <s-text>{new Date(product.latestDate).toLocaleDateString()}</s-text>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </s-box>
+        </s-section>
+      )}
 
       {findings.length === 0 ? (
         <s-section heading="No Findings">
@@ -178,5 +221,84 @@ export default function AgentDetailPage() {
         </s-paragraph>
       </s-section>
     </s-page>
+  );
+}
+
+function JudgeMeSetupBanner() {
+  const connectFetcher = useFetcher();
+  const isConnecting = connectFetcher.state !== "idle";
+  const connectResult = connectFetcher.data as { success?: boolean; error?: string; synced?: number } | null;
+
+  return (
+    <s-box padding="base" borderWidth="base" borderRadius="base">
+      <s-stack direction="block" gap="base">
+        <s-text><strong>Connect Judge.me to sync your reviews automatically</strong></s-text>
+        <s-paragraph>
+          Follow these steps to connect your reviews. This only needs to be done once — after that, new reviews sync automatically.
+        </s-paragraph>
+        <s-stack direction="block" gap="small">
+          <s-paragraph>
+            <strong>Step 1:</strong> Log in to your Judge.me dashboard at judge.me/dashboard
+          </s-paragraph>
+          <s-paragraph>
+            <strong>Step 2:</strong> Go to <strong>Settings</strong>, then click <strong>General settings</strong>, scroll down to find your <strong>API token</strong>
+          </s-paragraph>
+          <s-paragraph>
+            <strong>Step 3:</strong> Copy the token (it looks like a long string of letters and numbers) and paste it below
+          </s-paragraph>
+        </s-stack>
+
+        <connectFetcher.Form method="post" action="/app/api/reviews/connect">
+          <s-stack direction="block" gap="small">
+            <s-text-field
+              label="Judge.me API Token"
+              name="apiToken"
+              type="password"
+              placeholder="Paste your Judge.me private API token here"
+              autoComplete="off"
+            />
+            <s-button
+              variant="primary"
+              type="submit"
+              {...(isConnecting ? { loading: true } : {})}
+            >
+              {isConnecting ? "Connecting..." : "Connect Judge.me"}
+            </s-button>
+          </s-stack>
+        </connectFetcher.Form>
+
+        {connectResult?.error && (
+          <s-banner tone="critical">{connectResult.error}</s-banner>
+        )}
+        {connectResult?.success && (
+          <s-banner tone="success">
+            Connected! {connectResult.synced} reviews synced from Judge.me.
+          </s-banner>
+        )}
+      </s-stack>
+    </s-box>
+  );
+}
+
+function JudgeMeConnectedBanner({ syncConfig }: {
+  syncConfig: { status: string; provider: string; reviewCount: number; lastSyncedAt: string | null };
+}) {
+  const disconnectFetcher = useFetcher();
+  const isDisconnecting = disconnectFetcher.state !== "idle";
+
+  return (
+    <s-banner tone="success">
+      <s-stack direction="block" gap="small">
+        <s-text>
+          <strong>Judge.me connected</strong> — {syncConfig.reviewCount} reviews synced
+          {syncConfig.lastSyncedAt && ` (last sync: ${new Date(syncConfig.lastSyncedAt).toLocaleDateString()})`}
+        </s-text>
+        <disconnectFetcher.Form method="post" action="/app/api/reviews/disconnect">
+          <s-button variant="tertiary" type="submit" {...(isDisconnecting ? { loading: true } : {})}>
+            Disconnect
+          </s-button>
+        </disconnectFetcher.Form>
+      </s-stack>
+    </s-banner>
   );
 }
