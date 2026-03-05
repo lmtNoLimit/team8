@@ -4,6 +4,7 @@ import { authenticate } from "../shopify.server";
 import { getFindings } from "../services/finding-storage.server";
 import { getAgent } from "../agents/agent-registry.server";
 import { isAgentEnabled } from "../services/agent-settings.server";
+import prisma from "../db.server";
 import { FindingCard } from "../components/finding-card";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -29,6 +30,61 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const findings = await getFindings(session.shop, { agentId });
 
+  let syncConfig = null;
+  let reviewsByProduct: {
+    productId: string;
+    productTitle: string;
+    avgRating: number;
+    reviewCount: number;
+    latestDate: string;
+  }[] = [];
+
+  if (agentId === "review") {
+    syncConfig = await prisma.reviewSyncConfig.findUnique({
+      where: { shop: session.shop },
+    });
+
+    const reviews = await prisma.review.findMany({
+      where: { shop: session.shop },
+      orderBy: { reviewDate: "desc" },
+    });
+
+    const grouped = new Map<string, {
+      productId: string;
+      productTitle: string;
+      totalRating: number;
+      count: number;
+      latestDate: Date;
+    }>();
+
+    for (const r of reviews) {
+      const existing = grouped.get(r.productId);
+      if (existing) {
+        existing.totalRating += r.rating;
+        existing.count++;
+        if (r.reviewDate > existing.latestDate) {
+          existing.latestDate = r.reviewDate;
+        }
+      } else {
+        grouped.set(r.productId, {
+          productId: r.productId,
+          productTitle: r.productTitle,
+          totalRating: r.rating,
+          count: 1,
+          latestDate: r.reviewDate,
+        });
+      }
+    }
+
+    reviewsByProduct = Array.from(grouped.values()).map((g) => ({
+      productId: g.productId,
+      productTitle: g.productTitle,
+      avgRating: Math.round((g.totalRating / g.count) * 10) / 10,
+      reviewCount: g.count,
+      latestDate: g.latestDate.toISOString(),
+    }));
+  }
+
   return {
     agent: {
       agentId: agent.agentId,
@@ -36,6 +92,13 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       description: agent.description,
     },
     findings,
+    syncConfig: syncConfig ? {
+      status: syncConfig.status,
+      provider: syncConfig.provider,
+      reviewCount: syncConfig.reviewCount,
+      lastSyncedAt: syncConfig.lastSyncedAt?.toISOString() ?? null,
+    } : null,
+    reviewsByProduct,
   };
 };
 
