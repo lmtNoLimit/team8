@@ -9,6 +9,11 @@ import { executeFix } from "./fix-executor.server";
 
 const AGENT_TIMEOUT_MS = 30_000;
 
+/** Agents that need longer than the default 30s timeout (e.g. Claude API calls). */
+const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
+  storefront: 120_000,
+};
+
 /** Runs a single agent with timeout protection and persists findings. */
 export async function executeAgent(
   agent: Agent,
@@ -17,11 +22,12 @@ export async function executeAgent(
 ) {
   console.log(`[AgentExecutor] Starting ${agent.agentId} for ${shop}`);
   const startTime = Date.now();
+  const timeoutMs = AGENT_TIMEOUT_OVERRIDES[agent.agentId] ?? AGENT_TIMEOUT_MS;
 
   try {
     const findings = await Promise.race([
       agent.run(shop, admin),
-      rejectAfterTimeout(AGENT_TIMEOUT_MS, agent.agentId),
+      rejectAfterTimeout(timeoutMs, agent.agentId),
     ]);
 
     if (!findings || findings.length === 0) {

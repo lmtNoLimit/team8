@@ -85,8 +85,10 @@ export const storefrontAgent: Agent = {
 
     let croFindings: AgentFindingInput[] = [];
     try {
+      // Limit products sent to Claude to keep response time reasonable
+      const productsForCRO = activeProducts.slice(0, 20);
       const analysis = await askClaudeJSON<ClaudeCROAnalysis>(
-        buildCROPrompt(activeProducts),
+        buildCROPrompt(productsForCRO),
         SYSTEM_PROMPT,
       );
       if (!Array.isArray(analysis.findings)) {
