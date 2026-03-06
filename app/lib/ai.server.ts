@@ -19,5 +19,6 @@ export async function askClaudeJSON<T>(prompt: string, systemPrompt?: string): P
     prompt + "\n\nRespond with valid JSON only. No markdown, no explanation.",
     systemPrompt,
   );
-  return JSON.parse(text) as T;
+  const cleaned = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/g, "").trim();
+  return JSON.parse(cleaned) as T;
 }
